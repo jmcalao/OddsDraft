@@ -1,7 +1,9 @@
 # ═══════════════════════════════════════════════════════════════
 #  🤖 SUPERBOT v5.0 — config.py
 #  Todas las variables de entorno, constantes y tablas de datos.
-#  Importar desde aquí: from config import API_KEY, DRAW_RATES, ...
+#
+#  FIX v5.0.1: _env_int/_env_float con try/except — ya no explota
+#  si un secret tiene valor no numérico (placeholder, texto, etc.)
 # ═══════════════════════════════════════════════════════════════
 
 import os
@@ -16,16 +18,28 @@ logger = logging.getLogger(__name__)
 
 # ─── HELPERS PARA LEER ENV VARS ───────────────────────────────
 def _env_int(name: str, default: int) -> int:
+    """Lee una env var como entero. Si falta o tiene valor inválido usa default."""
     raw = os.environ.get(name)
     if raw is None or str(raw).strip() == "":
         return int(default)
-    return int(str(raw).strip())
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        logger.warning(
+            f"⚠️ Secret '{name}' = '{raw}' no es un número válido "
+            f"— usando default: {default}"
+        )
+        return int(default)
 
 def _env_float(name: str, default: float) -> float:
     raw = os.environ.get(name)
     if raw is None or str(raw).strip() == "":
         return float(default)
-    return float(str(raw).strip())
+    try:
+        return float(str(raw).strip())
+    except ValueError:
+        logger.warning(f"⚠️ Secret '{name}' = '{raw}' no es float — usando {default}")
+        return float(default)
 
 def _env_str(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
@@ -49,25 +63,34 @@ GSHEETS_SHEET_ID  = _env_str("GOOGLE_SHEET_ID")
 ANTHROPIC_API_KEY = _env_str("ANTHROPIC_API_KEY")
 
 # ─── PARÁMETROS OPERATIVOS ────────────────────────────────────
-BANKROLL             = _env_int("BANKROLL",             300_000)
-SCORE_MINIMO         = _env_int("SCORE_MINIMO",         70)
-SCORE_MIN_DRAW       = _env_int("SCORE_MIN_DRAW",       SCORE_MINIMO)
-# Under 2.5 ya no tiene score independiente — es un bonus al draw.
-# MIN_BOOKMAKERS controla cuántos bookmakers mínimos se exigen.
+BANKROLL           = _env_int("BANKROLL",           300_000)
+SCORE_MINIMO       = _env_int("SCORE_MINIMO",       70)
+SCORE_MIN_DRAW     = _env_int("SCORE_MIN_DRAW",     SCORE_MINIMO)
 MIN_BOOKMAKERS_DRAW  = _env_int("MIN_BOOKMAKERS_DRAW",  3)
 MIN_BOOKMAKERS_UNDER = _env_int("MIN_BOOKMAKERS_UNDER", 2)
 
-# Stake fijo: 2% del bankroll.
-# TODO v5.1: reemplazar por lógica Martingala cuando esté lista.
-APUESTA_FIJA = round(BANKROLL * 0.02)
+# ─── MARTINGALA ───────────────────────────────────────────────
+# Stake = BANKROLL * 2% * 1.5^(nivel-1)
+# Nivel 1: ~2.0%  Nivel 2: ~3.0%  Nivel 3: ~4.5%
+# Nivel 4: ~6.75% Nivel 5: ~10.1% Nivel 6: ~15.2%
+MARTINGALA_BASE_PCT  = 0.02
+MARTINGALA_FACTOR    = 1.5
+MARTINGALA_MAX_NIVEL = 6
+
+def calcular_stake_martingala(nivel: int) -> int:
+    nivel = max(1, min(nivel, MARTINGALA_MAX_NIVEL))
+    return round(BANKROLL * MARTINGALA_BASE_PCT * (MARTINGALA_FACTOR ** (nivel - 1)))
+
+# Alias: stake nivel 1 = apuesta base
+APUESTA_FIJA = calcular_stake_martingala(1)
 
 # ─── URLs BASE ────────────────────────────────────────────────
 ODDS_BASE     = "https://api.the-odds-api.com/v4"
 RAPIDAPI_BASE = "https://api-football-v1.p.rapidapi.com/v3"
 
-RAPIDAPI_MAX_H2H_POR_RUN = 11   # cupo diario conservador
-MAX_TELEGRAM_LEN         = 3900  # Telegram corta a 4096 — margen de seguridad
-PRE_THRESHOLD            = 50    # score mínimo para pedir H2H a RapidAPI
+RAPIDAPI_MAX_H2H_POR_RUN = 11
+MAX_TELEGRAM_LEN         = 3900
+PRE_THRESHOLD            = 50
 
 # ─── ARCHIVOS DE PERSISTENCIA ─────────────────────────────────
 DATA_DIR    = Path("./bot_data")
@@ -78,8 +101,7 @@ DATA_DIR.mkdir(exist_ok=True)
 def crear_sesion() -> requests.Session:
     s = requests.Session()
     retries = Retry(
-        total=3,
-        backoff_factor=2,
+        total=3, backoff_factor=2,
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["GET", "POST"],
     )
@@ -97,11 +119,11 @@ BLOQUES: dict[str, tuple[int, int]] = {
     "europa_tarde":        (14, 17),
     "sudamerica_arranque": (17, 20),
     "sudamerica_noche":    (20, 23),
-    "asia_oceania":        (23, 26),   # ← bloque de cierre (Claude AI + backup)
+    "asia_oceania":        (23, 26),
     "asia_madrugada":      (26, 30),
 }
 
-# ─── DRAW RATES — probabilidad histórica de empate por liga ───
+# ─── DRAW RATES ───────────────────────────────────────────────
 DRAW_RATE_DEFAULT = 0.27
 
 DRAW_RATES: dict[str, float] = {
@@ -141,9 +163,7 @@ DRAW_RATES: dict[str, float] = {
     "soccer_australia_a_league":         0.24,
 }
 
-# ─── UNDER 2.5 RATES — % histórico partidos con < 3 goles ─────
-# Nota: Under 2.5 es más restrictivo que Under 3.5.
-# Rangos típicos por liga: 40-56% según estilo defensivo.
+# ─── UNDER 2.5 RATES ──────────────────────────────────────────
 UNDER25_RATE_DEFAULT = 0.46
 
 UNDER25_RATES: dict[str, float] = {
