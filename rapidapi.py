@@ -12,6 +12,25 @@ from difflib import SequenceMatcher
 from config import RAPIDAPI_KEY, RAPIDAPI_BASE, SESION
 from utils  import hora_colombia, _normalizar
 
+import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+url = "https://free-api-live-football-data.p.rapidapi.com/football-players-search"
+
+querystring = {"search": "m"}
+
+headers = {
+    "x-rapidapi-key": os.environ["RAPIDAPI_KEY"],
+    "x-rapidapi-host": "free-api-live-football-data.p.rapidapi.com"
+}
+
+response = requests.get(url, headers=headers, params=querystring)
+
+print(response.json())
+
 logger = logging.getLogger(__name__)
 
 _RAPIDAPI_HEADERS = {
