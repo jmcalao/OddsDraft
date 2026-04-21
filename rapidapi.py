@@ -15,7 +15,6 @@ from utils  import hora_colombia, _normalizar
 import requests
 import os
 
-load_dotenv()
 
 url = "https://free-api-live-football-data.p.rapidapi.com/football-players-search"
 
