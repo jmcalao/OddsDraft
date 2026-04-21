@@ -1,0 +1,74 @@
+name: SuperBot v5.0
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   #  7:00am Col — Europa mañana
+    - cron: '30 14 * * *'  #  9:30am Col — Europa media mañana
+    - cron: '30 16 * * *'  # 11:30am Col — Europa mediodía
+    - cron: '30 18 * * *'  #  1:30pm Col — Europa tarde
+    - cron: '0 22 * * *'   #  5:00pm Col — Sudamérica arranque
+    - cron: '0 0 * * *'    #  7:00pm Col — Sudamérica noche
+    - cron: '0 3 * * *'    # 10:00pm Col — Asia/Oceanía ← CIERRE: Claude AI + backup
+    - cron: '0 6 * * *'    #  1:00am Col — Asia madrugada
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write    # necesario para git commit del backup
+
+concurrency:
+  group: superbot-v5
+  cancel-in-progress: false
+
+jobs:
+  run-superbot-v5:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: ✅ Checkout código
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: 📥 Descargar historial anterior
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: bot-historial
+          path: ./bot_data/
+          if_no_artifact_found: warn
+
+      - name: 🤖 Ejecutar SuperBot v5.0
+        env:
+          API_KEY:                     ${{ secrets.API_KEY }}
+          BOT_TOKEN:                   ${{ secrets.BOT_TOKEN }}
+          CHAT_ID:                     ${{ secrets.CHAT_ID }}
+          BANKROLL:                    ${{ secrets.BANKROLL }}
+          SCORE_MINIMO:                ${{ secrets.SCORE_MINIMO }}
+          SCORE_MIN_DRAW:              ${{ secrets.SCORE_MIN_DRAW }}
+          MIN_BOOKMAKERS_DRAW:         ${{ secrets.MIN_BOOKMAKERS_DRAW }}
+          MIN_BOOKMAKERS_UNDER:        ${{ secrets.MIN_BOOKMAKERS_UNDER }}
+          RAPIDAPI_KEY:                ${{ secrets.RAPIDAPI_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID:             ${{ secrets.GOOGLE_SHEET_ID }}
+          ANTHROPIC_API_KEY:           ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN:                ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY:           ${{ github.repository }}
+        run: python main.py
+
+      - name: 📤 Guardar historial en artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bot-historial
+          path: ./bot_data/historial.json
+          retention-days: 90
+          overwrite: true
