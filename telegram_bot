@@ -1,0 +1,206 @@
+# ═══════════════════════════════════════════════════════════════
+#  🤖 SUPERBOT v5.0 — telegram_bot.py
+#  Envío de mensajes a Telegram y formateo de alertas.
+#
+#  CAMBIO v5:
+#  • Solo existe alerta de EMPATE (no más UNDER 3.5 independiente).
+#  • Si el partido tiene Under 2.5 con EV positivo, la alerta
+#    muestra la sección ⚡ UNDER 2.5 BONO como información adicional.
+#  • Cuando hay múltiples alertas en la misma franja horaria,
+#    la alerta con mejor score lleva el tag ⭐ MEJOR SCORE.
+# ═══════════════════════════════════════════════════════════════
+
+import logging
+from config import BOT_TOKEN, CHAT_ID, SESION, APUESTA_FIJA, DRAW_RATE_DEFAULT
+from utils  import safe_html, _chunk_text
+
+logger = logging.getLogger(__name__)
+
+
+# ─── ENVÍO A TELEGRAM ─────────────────────────────────────────
+def enviar_telegram(msg: str) -> bool:
+    """
+    Envía un mensaje a Telegram. Divide automáticamente si supera el límite.
+    Retorna True si todos los chunks se enviaron correctamente.
+    """
+    try:
+        chunks = _chunk_text(msg)
+        for chunk in chunks:
+            r = SESION.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id":    CHAT_ID,
+                    "text":       chunk,
+                    "parse_mode": "HTML",
+                },
+                timeout=10,
+            )
+            if not r.ok:
+                logger.error(f"⚠️ Telegram {r.status_code}: {r.text[:100]}")
+                return False
+        return True
+    except Exception as e:
+        logger.error(f"⚠️ enviar_telegram: {type(e).__name__}: {e}")
+        return False
+
+
+# ─── ALERTA EMPATE ────────────────────────────────────────────
+def formatear_alerta_draw(
+    liga: str,
+    local: str,
+    visitante: str,
+    score: int,
+    cuota_loc: float | None,
+    cuota_emp: float,
+    cuota_vis: float | None,
+    prob_real: int,
+    prob_imp: int,
+    num_bm: int,
+    hora_col: str,
+    razones: list[str],
+    draw_rate: float,
+    # ── Under 2.5 bonus (v5) ────────────────────────────────────
+    under25_bonus: int = 0,
+    cuota_under25: float | None = None,
+    razon_under25: str | None = None,
+    # ── Sugerencia de mejor score en franja ─────────────────────
+    es_mejor_score: bool = False,
+) -> str:
+    """
+    Formatea la alerta de empate para Telegram.
+
+    Si under25_bonus > 0, incluye sección ⚡ UNDER 2.5 BONO.
+    Si es_mejor_score, añade tag ⭐ al encabezado.
+    """
+    try:
+        ganancia = round(APUESTA_FIJA * cuota_emp) - APUESTA_FIJA
+        valor    = round(prob_real - prob_imp, 1)
+        emoji    = "🔥" if score >= 85 else "🟢"
+        barra    = "█" * round(score / 10) + "░" * (10 - round(score / 10))
+        dr_tag   = (
+            "(conocida)" if draw_rate != DRAW_RATE_DEFAULT
+            else "(promedio global)"
+        )
+        razones_txt = "\n".join(f"  · {safe_html(r)}" for r in razones)
+        mejor_tag   = " ⭐ MEJOR SCORE" if es_mejor_score else ""
+
+        # Sección Under 2.5 (opcional)
+        seccion_under25 = ""
+        if under25_bonus > 0 and cuota_under25:
+            seccion_under25 = (
+                f"\n⚡ <b>UNDER 2.5 — BONO ACTIVO</b>\n"
+                f"  Cuota Under 2.5: <b>{cuota_under25}</b>\n"
+                f"  Este partido es candidato a terminar con 0, 1 o 2 goles.\n"
+                f"  (sumó +{under25_bonus} pts al score de empate)\n"
+            )
+
+        cuota_loc_str = str(cuota_loc) if cuota_loc else "—"
+        cuota_vis_str = str(cuota_vis) if cuota_vis else "—"
+
+        return (
+            f"{emoji} <b>ALERTA EMPATE{mejor_tag}</b>\n\n"
+            f"⚽ <b>{safe_html(local)} vs {safe_html(visitante)}</b>\n"
+            f"🏆 {safe_html(liga)} | 🕐 {safe_html(hora_col)} Col\n\n"
+            f"📊 <b>Score empate: {score}/100</b>\n"
+            f"<code>{barra}</code>\n\n"
+            f"💰 Cuotas: {safe_html(cuota_loc_str)} | "
+            f"<b>{safe_html(str(cuota_emp))}</b> | "
+            f"{safe_html(cuota_vis_str)}\n"
+            f"         Local  |  Empate  | Visita\n\n"
+            f"📈 EV: {'+' if valor > 0 else ''}{valor}%\n"
+            f"🎲 Prob real: {prob_real}% vs implícita: {prob_imp}%\n"
+            f"📉 Draw rate liga: {round(draw_rate*100)}% {dr_tag}\n"
+            f"👥 Consenso: {num_bm} bookmakers\n\n"
+            f"<b>Razones del score:</b>\n{razones_txt}\n"
+            f"{seccion_under25}\n"
+            f"💵 <b>Apostar: ${APUESTA_FIJA:,} COP</b>\n"
+            f"🎯 Ganancia potencial: +${ganancia:,} COP\n\n"
+            f"⚠️ Juega con responsabilidad"
+        )
+
+    except Exception as e:
+        logger.error(f"❌ formatear_alerta_draw: {e}")
+        return ""
+
+
+# ─── MENSAJE SIN ALERTAS ──────────────────────────────────────
+def formatear_sin_alertas(
+    bloque: str,
+    ahora: str,
+    partidos_vistos: int,
+    ligas_vistas: set,
+    partidos_filtrados: int,
+    mejor_partido: str,
+    score_minimo: int,
+    rapidapi_h2h_calls: int,
+    stats_txt: str,
+) -> str:
+    ra_status = (
+        f"activo ✅ ({rapidapi_h2h_calls} H2H)"
+        if rapidapi_h2h_calls > 0 else "inactivo ⚠️"
+    )
+    filtrados_txt = (
+        f"\n🚫 {partidos_filtrados} descartados por favorito claro"
+        if partidos_filtrados else ""
+    )
+    mejor_txt = (
+        f"\n\n🏅 <b>Mejor partido (no superó {score_minimo}):</b>\n"
+        f"{safe_html(mejor_partido)}"
+        if mejor_partido else ""
+    )
+    return (
+        f"🔍 <b>SuperBot v5.0 — {safe_html(bloque)}</b>\n\n"
+        f"📅 {safe_html(ahora)} (Colombia)\n"
+        f"📊 Analicé <b>{partidos_vistos} partido(s)</b> en "
+        f"<b>{len(ligas_vistas)} liga(s)</b>"
+        f"{safe_html(filtrados_txt)}"
+        f"{mejor_txt}\n\n"
+        f"📡 RapidAPI H2H: {ra_status}\n"
+        f"❌ Ninguno superó score {score_minimo}\n\n"
+        f"{stats_txt}\n\n"
+        f"⏰ Próxima revisión automática pronto! 👀"
+    )
+
+
+# ─── RESUMEN CON ALERTAS ──────────────────────────────────────
+def formatear_resumen_alertas(
+    bloque: str,
+    ahora: str,
+    partidos_vistos: int,
+    ligas_vistas: set,
+    log_draws: list,
+    alertas_enviadas: int,
+    score_min_draw: int,
+    rapidapi_h2h_calls: int,
+    stats_txt: str,
+) -> str:
+    """
+    Mensaje resumen al final de un run cuando se enviaron alertas.
+    """
+    ra_status = (
+        f"activo ✅ ({rapidapi_h2h_calls} H2H)"
+        if rapidapi_h2h_calls > 0 else "inactivo ⚠️"
+    )
+
+    detalle = ""
+    if log_draws:
+        detalle += "\n🟢 <b>EMPATES:</b>\n"
+        for loc, vis, lig, sd, hc, bonus in log_draws:
+            bonus_tag = f" ⚡U2.5+{bonus}" if bonus else ""
+            detalle  += (
+                f"  · {safe_html(loc)} vs {safe_html(vis)}\n"
+                f"    {safe_html(lig)} | {safe_html(hc)} Col "
+                f"| Score:{sd}/100{safe_html(bonus_tag)}\n"
+            )
+
+    return (
+        f"✅ <b>SuperBot v5.0 — {safe_html(bloque)}</b>\n\n"
+        f"📅 {safe_html(ahora)} (Colombia)\n"
+        f"📊 Analicé <b>{partidos_vistos} partido(s)</b> en "
+        f"<b>{len(ligas_vistas)} liga(s)</b>\n"
+        f"📡 RapidAPI H2H: {ra_status}\n"
+        f"<b>Alertas enviadas:</b>{detalle}\n"
+        f"🟢 {alertas_enviadas} empate(s)\n"
+        f"✅ Score mínimo: {score_min_draw}\n\n"
+        f"{stats_txt}"
+    )
