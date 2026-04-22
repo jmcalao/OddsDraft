@@ -1,7 +1,20 @@
 # ═══════════════════════════════════════════════════════════════
 #  🤖 SUPERBOT v5.0 — sheets.py
-#  Sincronización del historial con Google Sheets.
-#  Una pestaña por mes, formato visual premium, colores W/L.
+#
+#  COLUMNAS (18):
+#  A=#  B=Fecha  C=Hora  D=Tipo  E=País  F=Liga
+#  G=Local  H=Visitante  I=Score  J=Resultado  K=W-L
+#  L=¿Aposté?  M=Apuesta  N=Cuota  O=Potencial
+#  P=G.Neta  Q=Balance  R=U2.5 Bono
+#
+#  ¿Aposté? = columna que vos llenás con "Y" o dejás vacía.
+#  Balance y stats de Apostadas calculan SOLO sobre filas Y.
+#  El bot lee los Y antes de limpiar → los conserva en historial.json
+#  → los restaura al reescribir. Nunca se pierden.
+#
+#  Dos filas de totales al final:
+#    TOTAL ALERTAS   — todas las alertas del mes
+#    TOTAL APOSTADAS — solo las que marcaste Y
 # ═══════════════════════════════════════════════════════════════
 
 import json
@@ -11,10 +24,42 @@ from utils  import _nombre_mes, _tipo_legible, _wl_de_estado, _pais_de_sport_key
 
 logger = logging.getLogger(__name__)
 
+# ── Posición de la columna ¿Aposté? (0-indexed)
+COL_APOSTADO = 11   # columna L
+
+HEADERS = [
+    "#", "Fecha", "Hora", "Tipo", "País", "Liga",
+    "Local", "Visitante", "Score",
+    "Resultado", "W-L", "¿Aposté?",
+    "Apuesta", "Cuota", "Potencial", "G. Neta", "Balance", "U2.5 Bono",
+]
+# Anchos en píxeles — 18 columnas
+COL_WIDTHS = [
+    35,   # A #
+    105,  # B Fecha
+    60,   # C Hora
+    80,   # D Tipo
+    90,   # E País
+    175,  # F Liga
+    160,  # G Local
+    160,  # H Visitante
+    55,   # I Score
+    85,   # J Resultado
+    50,   # K W-L
+    75,   # L ¿Aposté?
+    90,   # M Apuesta
+    60,   # N Cuota
+    100,  # O Potencial
+    100,  # P G. Neta
+    105,  # Q Balance
+    85,   # R U2.5 Bono
+]
+NCOLS = len(HEADERS)   # 18
+LAST_COL = "R"
+
 
 # ─── HELPERS DE FORMATO ───────────────────────────────────────
 def _fmt(bold=False, fg=None, bg=None, size=10, halign="CENTER") -> dict:
-    """Construye un dict de formato para Google Sheets API."""
     f: dict = {
         "horizontalAlignment": halign,
         "textFormat": {"bold": bold, "fontSize": size},
@@ -28,23 +73,29 @@ def _fmt(bold=False, fg=None, bg=None, size=10, halign="CENTER") -> dict:
     return f
 
 
+# ─── LEER ¿Aposté? ANTES DE LIMPIAR ──────────────────────────
+def _leer_apostados_del_sheet(ws, n_filas: int) -> list[bool]:
+    """
+    Lee la columna L (¿Aposté?) para las n_filas de datos (sin header).
+    Retorna lista de bool: True si la celda contiene "Y" (mayúscula o minúscula).
+    Si falla la lectura retorna lista de False.
+    """
+    try:
+        # fila 2 a fila n_filas+1 (fila 1 es header)
+        celdas = ws.col_values(COL_APOSTADO + 1)  # 1-indexed
+        # celdas[0] = header, celdas[1..n] = datos
+        resultado = []
+        for i in range(1, n_filas + 1):
+            val = celdas[i].strip().upper() if i < len(celdas) else ""
+            resultado.append(val == "Y")
+        return resultado
+    except Exception as e:
+        logger.warning(f"⚠️ No se pudo leer ¿Aposté?: {e}")
+        return [False] * n_filas
+
+
 # ─── SINCRONIZACIÓN ───────────────────────────────────────────
 def sincronizar_google_sheets(historial: dict) -> bool:
-    """
-    Sincroniza el historial con Google Sheets en tiempo real.
-
-    ESTRUCTURA: una pestaña por mes, ordenada por fecha+hora.
-    COLUMNAS: #, Fecha, Hora, Tipo, País, Liga, Local, Visitante,
-              Resultado, W-L, Apuesta, Cuota, Potencial, G.Neta,
-              Balance, U2.5 Bono
-    COLORES:
-      Header:    azul oscuro #1F3864, texto blanco
-      Ganada:    verde suave #D9EAD3
-      Perdida:   rojo suave  #F4CCCC
-      Pendiente: gris alterno #F8F9FA / #FFFFFF
-      Totales:   azul medio  #4A86C8, texto blanco, bold
-      Balance positivo: texto verde | negativo: texto rojo
-    """
     if not GSHEETS_CREDS or not GSHEETS_SHEET_ID:
         logger.info("📊 Google Sheets: secrets no configurados — omitiendo")
         return False
@@ -72,24 +123,46 @@ def sincronizar_google_sheets(historial: dict) -> bool:
             mes = _nombre_mes(a.get("fecha", ""))
             por_mes.setdefault(mes, []).append(a)
 
-        # ── Columnas (v5: agrega U2.5 Bono) ──────────────────
-        HEADERS = [
-            "#", "Fecha", "Hora", "Tipo", "País", "Liga",
-            "Local", "Visitante",
-            "Resultado", "W-L", "Apuesta", "Cuota",
-            "Potencial", "G. Neta", "Balance", "U2.5 Bono",
-        ]
-        # Anchos en píxeles — 16 columnas
-        COL_WIDTHS = [40, 105, 65, 85, 95, 180, 165, 165,
-                      90, 55, 90, 65, 105, 110, 110, 90]
+        # Set de IDs marcados como apostados (persistido en historial)
+        apostados_ids: set = set(historial.get("apostados_ids", []))
 
         for mes, ames in por_mes.items():
-            # Obtener o crear la pestaña
+            ames_s = sorted(
+                ames,
+                key=lambda x: (x.get("fecha", ""), x.get("hora_col", ""))
+            )
+            n = len(ames_s)
+
+            # ── Obtener o crear la pestaña ────────────────────
             try:
                 ws = sh.worksheet(mes)
+                # Leer ¿Aposté? ANTES de limpiar
+                # (solo si la hoja ya tiene datos = al menos 2 filas)
+                try:
+                    filas_actuales = len(ws.get_all_values()) - 1  # sin header
+                except Exception:
+                    filas_actuales = 0
+
+                if filas_actuales > 0:
+                    marcados = _leer_apostados_del_sheet(ws, min(filas_actuales, n))
+                    # Asociar al ID del partido por posición (mismo orden sort)
+                    for idx, marcado in enumerate(marcados):
+                        if idx < n and marcado:
+                            apostados_ids.add(ames_s[idx].get("id", ""))
+
                 ws.clear()
             except gspread.WorksheetNotFound:
-                ws = sh.add_worksheet(title=mes, rows=500, cols=20)
+                ws = sh.add_worksheet(title=mes, rows=500, cols=22)
+
+        # Persistir los IDs apostados en historial para no perderlos
+        historial["apostados_ids"] = list(apostados_ids)
+
+        # ── Reescribir cada pestaña ───────────────────────────
+        for mes, ames in por_mes.items():
+            try:
+                ws = sh.worksheet(mes)
+            except gspread.WorksheetNotFound:
+                ws = sh.add_worksheet(title=mes, rows=500, cols=22)
 
             ames_s = sorted(
                 ames,
@@ -97,26 +170,37 @@ def sincronizar_google_sheets(historial: dict) -> bool:
             )
             n = len(ames_s)
 
-            # ── 1. Construir filas de datos ───────────────────
-            all_rows = [HEADERS]
-            balance_acum = BANKROLL  # empieza desde bankroll inicial
+            # ── 1. Construir filas ────────────────────────────
+            all_rows  = [HEADERS]
+
+            # Balance apostado: solo filas con Y resueltas
+            balance_apostado = BANKROLL
 
             for idx, a in enumerate(ames_s, 1):
-                estado    = a.get("estado", "pendiente")
+                estado   = a.get("estado", "pendiente")
+                aid      = a.get("id", "")
+                apostado = aid in apostados_ids  # True/False
                 resultado = (a.get("resultado") or "").replace("-", "x")
                 apuesta   = a.get("apuesta_cop", 0)
                 cuota     = a.get("cuota", 0)
+                score     = a.get("score", "")
                 potencial = round(apuesta * cuota) if cuota else 0
-                gan_neta  = (
-                    a.get("ganancia_real", 0)
-                    if estado != "pendiente" else ""
-                )
-                wl    = _wl_de_estado(estado)
-                bonus = a.get("under25_bonus", 0)
+                bonus     = a.get("under25_bonus", 0)
 
-                if isinstance(gan_neta, (int, float)):
-                    balance_acum += gan_neta
-                bal = balance_acum if estado != "pendiente" else ""
+                # G. Neta y Balance solo para apostadas resueltas
+                if apostado and estado != "pendiente":
+                    gan_neta = a.get("ganancia_real", 0)
+                    balance_apostado += gan_neta
+                    bal = balance_apostado
+                elif estado == "pendiente":
+                    gan_neta = ""
+                    bal = ""
+                else:
+                    # Resuelta pero no apostada — mostramos resultado pero sin $
+                    gan_neta = ""
+                    bal = ""
+
+                wl = _wl_de_estado(estado)
 
                 all_rows.append([
                     idx,
@@ -127,111 +211,156 @@ def sincronizar_google_sheets(historial: dict) -> bool:
                     a.get("liga", ""),
                     a.get("local", ""),
                     a.get("visitante", ""),
-                    resultado, wl, apuesta, cuota, potencial,
-                    gan_neta, bal,
+                    score,
+                    resultado,
+                    wl,
+                    "Y" if apostado else "",   # ← ¿Aposté?
+                    apuesta if apostado else "",
+                    cuota,
+                    potencial if apostado else "",
+                    gan_neta,
+                    bal,
                     f"+{bonus}pts" if bonus else "",
                 ])
 
-            # Fila de totales
-            resueltas   = [a for a in ames_s if a.get("estado") != "pendiente"]
-            ganadas_tot = sum(1 for a in resueltas if a.get("estado") == "ganada")
-            total_r     = len(resueltas)
-            wr_pct      = f"{round(ganadas_tot/total_r*100,1)}%" if total_r > 0 else "-"
-            gan_neta_tot = sum(
-                a.get("ganancia_real", 0)
-                for a in ames_s
-                if a.get("estado") != "pendiente"
-            )
-            roi_pct = (
-                round(gan_neta_tot / (total_r * APUESTA_FIJA) * 100, 1)
-                if total_r > 0 else 0
-            )
-            total_row = n + 2
+            # ── 2. Filas de totales ───────────────────────────
+            total_row_alertas   = n + 2
+            total_row_apostadas = n + 3
 
+            resueltas     = [a for a in ames_s if a.get("estado") != "pendiente"]
+            ganadas_all   = sum(1 for a in resueltas if a["estado"] == "ganada")
+            total_all     = len(resueltas)
+            wr_all        = f"{round(ganadas_all/total_all*100,1)}%" if total_all else "-"
+
+            apostadas_res = [
+                a for a in resueltas
+                if a.get("id", "") in apostados_ids
+            ]
+            ganadas_ap    = sum(1 for a in apostadas_res if a["estado"] == "ganada")
+            total_ap      = len(apostadas_res)
+            wr_ap         = f"{round(ganadas_ap/total_ap*100,1)}%" if total_ap else "-"
+            gan_ap        = sum(a.get("ganancia_real", 0) for a in apostadas_res)
+            staked_ap     = sum(int(a.get("apuesta_cop", 0)) for a in apostadas_res) or 1
+            roi_ap        = round(gan_ap / staked_ap * 100, 1) if apostadas_res else 0
+
+            # Fila TOTAL ALERTAS (todas)
             all_rows.append([
-                "", f"TOTALES — {mes}",
-                f"{ganadas_tot}W / {total_r - ganadas_tot}L",
-                f"WR {wr_pct}", f"ROI {roi_pct}%",
-                "", "", "", "",
-                sum(a.get("apuesta_cop", 0) for a in ames_s), "",
-                sum(round(a.get("apuesta_cop", 0)*a.get("cuota", 0)) for a in ames_s),
-                gan_neta_tot,
-                balance_acum,
-                "",
+                "", f"TOTAL ALERTAS — {mes}",
+                f"{ganadas_all}W / {total_all - ganadas_all}L",
+                f"WR {wr_all}", "", "", "", "", "", "", "", "",
+                sum(a.get("apuesta_cop",0) for a in ames_s if a.get("id","") in apostados_ids),
+                "", "", "", "", "",
+            ])
+
+            # Fila TOTAL APOSTADAS (solo Y)
+            all_rows.append([
+                "", f"APOSTADAS — {mes}",
+                f"{ganadas_ap}W / {total_ap - ganadas_ap}L",
+                f"WR {wr_ap}", f"ROI {roi_ap}%",
+                "", "", "", "", "", "", "",
+                staked_ap if apostadas_res else "",
+                "", "", gan_ap or "", balance_apostado, "",
             ])
 
             ws.update("A1", all_rows, value_input_option="USER_ENTERED")
 
-            # ── 2. Formatos ───────────────────────────────────
+            # ── 3. Formatos ───────────────────────────────────
             ws.freeze(rows=1)
             fmt_reqs = []
 
-            # Header y totales
+            # Header
             fmt_reqs.append({
-                "range": "A1:P1",
+                "range": f"A1:{LAST_COL}1",
                 "format": _fmt(bold=True, fg="FFFFFF", bg="1F3864", size=10),
             })
+            # Fila TOTAL ALERTAS
             fmt_reqs.append({
-                "range": f"A{total_row}:P{total_row}",
+                "range": f"A{total_row_alertas}:{LAST_COL}{total_row_alertas}",
                 "format": _fmt(bold=True, fg="FFFFFF", bg="4A86C8", size=10),
+            })
+            # Fila APOSTADAS — verde oscuro
+            fmt_reqs.append({
+                "range": f"A{total_row_apostadas}:{LAST_COL}{total_row_apostadas}",
+                "format": _fmt(bold=True, fg="FFFFFF", bg="274E13", size=10),
             })
 
             # Filas de datos
             for ri, a in enumerate(ames_s, 2):
-                estado = a.get("estado", "pendiente")
+                estado   = a.get("estado", "pendiente")
+                apostado = a.get("id", "") in apostados_ids
+
                 if estado == "ganada":
-                    bg = "D9EAD3"
+                    bg = "D9EAD3"      # verde suave
                 elif estado == "perdida":
-                    bg = "F4CCCC"
+                    bg = "F4CCCC"      # rojo suave
                 else:
                     bg = "F8F9FA" if ri % 2 == 0 else "FFFFFF"
 
+                # Fila completa base
                 fmt_reqs.append({
-                    "range": f"A{ri}:P{ri}",
+                    "range": f"A{ri}:{LAST_COL}{ri}",
                     "format": _fmt(bg=bg, size=9, halign="CENTER"),
                 })
 
-                # Columna Tipo con color especial
+                # Score — bold
+                fmt_reqs.append({
+                    "range": f"I{ri}",
+                    "format": _fmt(bold=True, bg=bg, size=9),
+                })
+
+                # Tipo — azul bold
                 fmt_reqs.append({
                     "range": f"D{ri}",
                     "format": _fmt(bold=True, fg="1155CC", bg=bg, size=9),
                 })
 
-                # Columna W-L
+                # W-L
                 wl = _wl_de_estado(estado)
                 if wl == "W":
                     fmt_reqs.append({
-                        "range": f"J{ri}",
+                        "range": f"K{ri}",
                         "format": _fmt(bold=True, fg="274E13", bg=bg, size=9),
                     })
                 elif wl == "L":
                     fmt_reqs.append({
-                        "range": f"J{ri}",
+                        "range": f"K{ri}",
                         "format": _fmt(bold=True, fg="CC0000", bg=bg, size=9),
                     })
 
-            # Columna Balance: rojo si por debajo del bankroll inicial
+                # ¿Aposté? — fondo amarillo si Y, gris si vacío
+                if apostado:
+                    fmt_reqs.append({
+                        "range": f"L{ri}",
+                        "format": _fmt(bold=True, fg="7F4F00", bg="FFE599", size=9),
+                    })
+                else:
+                    fmt_reqs.append({
+                        "range": f"L{ri}",
+                        "format": _fmt(fg="999999", bg="F3F3F3", size=9),
+                    })
+
+            # Balance apostado — color según esté arriba/abajo del bankroll
             _bal = BANKROLL
             for ri, a in enumerate(ames_s, 2):
-                if a.get("estado") == "pendiente":
+                aid = a.get("id", "")
+                if a.get("estado") == "pendiente" or aid not in apostados_ids:
                     continue
                 gan = a.get("ganancia_real", 0)
                 if isinstance(gan, (int, float)):
                     _bal += gan
-                bg     = "D9EAD3" if a.get("estado") == "ganada" else "F4CCCC"
+                bg_row = "D9EAD3" if a.get("estado") == "ganada" else "F4CCCC"
                 fg_bal = "CC0000" if _bal < BANKROLL else "274E13"
                 fmt_reqs.append({
-                    "range": f"O{ri}",
-                    "format": _fmt(bold=True, fg=fg_bal, bg=bg, size=9),
+                    "range": f"Q{ri}",
+                    "format": _fmt(bold=True, fg=fg_bal, bg=bg_row, size=9),
                 })
 
-            # Enviar formatos en batch
             try:
                 ws.batch_format(fmt_reqs)
             except AttributeError:
                 logger.warning("⚠️ batch_format no soportado — actualiza gspread")
 
-            # Anchos de columna
+            # ── 4. Anchos de columna ──────────────────────────
             dim_reqs = []
             for ci, width in enumerate(COL_WIDTHS):
                 dim_reqs.append({
@@ -246,7 +375,6 @@ def sincronizar_google_sheets(historial: dict) -> bool:
                         "fields": "pixelSize",
                     }
                 })
-            # Altura del header
             dim_reqs.append({
                 "updateDimensionProperties": {
                     "range": {
@@ -255,7 +383,7 @@ def sincronizar_google_sheets(historial: dict) -> bool:
                         "startIndex": 0,
                         "endIndex": 1,
                     },
-                    "properties": {"pixelSize": 28},
+                    "properties": {"pixelSize": 30},
                     "fields": "pixelSize",
                 }
             })
@@ -263,7 +391,8 @@ def sincronizar_google_sheets(historial: dict) -> bool:
 
         logger.info(
             f"✅ Google Sheets sincronizado: "
-            f"{len(alertas)} alertas | {len(por_mes)} mes(es)"
+            f"{len(alertas)} alertas | {len(apostados_ids)} apostadas | "
+            f"{len(por_mes)} mes(es)"
         )
         return True
 
