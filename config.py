@@ -95,7 +95,7 @@ PRE_THRESHOLD            = 50
 # ─── ARCHIVOS DE PERSISTENCIA ─────────────────────────────────
 # DATA_DIR    = Path("./bot_data")
 HISTORIAL_F = "historial.json"
-DATA_DIR.mkdir(exist_ok=True)
+#DATA_DIR.mkdir(exist_ok=True)
 
 # ─── SESIÓN HTTP CON RETRIES ──────────────────────────────────
 def crear_sesion() -> requests.Session:
