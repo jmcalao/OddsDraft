@@ -94,7 +94,7 @@ PRE_THRESHOLD            = 50
 
 # ─── ARCHIVOS DE PERSISTENCIA ─────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
-HISTORIAL_F = BASE_DIR / "historial.json"
+HISTORIAL_F = BASE_DIR / "historial_backup.json"
 #DATA_DIR.mkdir(exist_ok=True)
 
 # ─── SESIÓN HTTP CON RETRIES ──────────────────────────────────
