@@ -93,9 +93,9 @@ MAX_TELEGRAM_LEN         = 3900
 PRE_THRESHOLD            = 50
 
 # ─── ARCHIVOS DE PERSISTENCIA ─────────────────────────────────
-BASE_DIR = Path(__file__).resolve().parent
-HISTORIAL_F = BASE_DIR / "historial.json"
-#DATA_DIR.mkdir(exist_ok=True)
+BASE_DIR = Path(./bot_data)
+HISTORIAL_F = DATA_DIR / "historial.json"
+DATA_DIR.mkdir(exist_ok=True)
 
 # ─── SESIÓN HTTP CON RETRIES ──────────────────────────────────
 def crear_sesion() -> requests.Session:
