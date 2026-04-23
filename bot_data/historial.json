@@ -1015,7 +1015,7 @@
       "martingala_procesado": false
     }
   ],
-  ""stats": {
+  "stats": {
     "total": ,
     "ganadas": ,
     "perdidas": ,
@@ -1027,5 +1027,6 @@
     "racha_perdidas": ,
     "activa": true,
     "stop_notificado": false
-  }
+  },
+  apostados_ids": [],
 }
