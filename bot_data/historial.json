@@ -881,6 +881,10 @@
       "estado": "pendiente",
       "resultado": null,
       "ganancia_real": 0
+      "nivel_martingala": 1,
+      "under25_bonus": 0,
+      "cuota_under25": 1.89,
+      "martingala_procesado": true
     }
     {
       "id": "1547d63c94d30130",
