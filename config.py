@@ -93,7 +93,7 @@ MAX_TELEGRAM_LEN         = 3900
 PRE_THRESHOLD            = 50
 
 # ─── ARCHIVOS DE PERSISTENCIA ─────────────────────────────────
-BASE_DIR = Path("./bot_data")
+DATA_DIR = Path("./bot_data")
 HISTORIAL_F = DATA_DIR / "historial.json"
 DATA_DIR.mkdir(exist_ok=True)
 
