@@ -146,13 +146,13 @@
       "commence_time": "2026-04-24T09:35:00Z",
       "apuesta_cop": 3000,
       "ganancia_pot": 8730,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "4-0",
+      "ganancia_real": -3000,
       "nivel_martingala": 2,
       "under25_bonus": 0,
       "cuota_under25": 2.69,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "6e2d632552b58e62",
@@ -212,30 +212,76 @@
       "commence_time": "2026-04-24T10:00:00Z",
       "apuesta_cop": 3000,
       "ganancia_pot": 6900,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "0-1",
+      "ganancia_real": -3000,
       "nivel_martingala": 2,
       "under25_bonus": 0,
       "cuota_under25": 1.76,
+      "martingala_procesado": true
+    },
+    {
+      "id": "57649d1f675d4994",
+      "fecha": "2026-04-24",
+      "tipo": "draw",
+      "local": "1. FC Kaiserslautern",
+      "visitante": "Eintracht Braunschweig",
+      "liga": "Bundesliga 2 - Germany",
+      "sport_key": "soccer_germany_bundesliga2",
+      "score": 87,
+      "cuota": 3.6,
+      "hora_col": "11:30",
+      "commence_time": "2026-04-24T16:30:00Z",
+      "apuesta_cop": 6750,
+      "ganancia_pot": 17550,
+      "estado": "pendiente",
+      "resultado": null,
+      "ganancia_real": 0,
+      "nivel_martingala": 4,
+      "under25_bonus": 0,
+      "cuota_under25": 2.33,
+      "martingala_procesado": false
+    },
+    {
+      "id": "cc7078a0a01d5d85",
+      "fecha": "2026-04-24",
+      "tipo": "draw",
+      "local": "1. FC Nürnberg",
+      "visitante": "Hamburger SV",
+      "liga": "Frauen-Bundesliga",
+      "sport_key": "soccer_germany_bundesliga_women",
+      "score": 80,
+      "cuota": 3.35,
+      "hora_col": "11:30",
+      "commence_time": "2026-04-24T16:30:00Z",
+      "apuesta_cop": 6750,
+      "ganancia_pot": 15862,
+      "estado": "pendiente",
+      "resultado": null,
+      "ganancia_real": 0,
+      "nivel_martingala": 4,
+      "under25_bonus": 4,
+      "cuota_under25": 2.12,
       "martingala_procesado": false
     }
   ],
   "stats": {
-    "total": 10,
+    "total": 12,
     "ganadas": 3,
-    "perdidas": 3,
+    "perdidas": 5,
     "pendientes": 4,
-    "ganancia_neta": 7100
+    "ganancia_neta": 1100
   },
   "martingala": {
-    "nivel": 2,
-    "racha_perdidas": 1,
+    "nivel": 4,
+    "racha_perdidas": 3,
     "activa": true,
     "stop_notificado": false
   },
   "apostados_ids": [
+    "6e2d632552b58e62",
     "55a087bce14a77fc",
-    "793639aa08ac1b68"
+    "793639aa08ac1b68",
+    "45ae99c34c9905f5"
   ]
 }
