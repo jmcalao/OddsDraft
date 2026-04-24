@@ -94,6 +94,57 @@ def _leer_apostados_del_sheet(ws, n_filas: int) -> list[bool]:
         return [False] * n_filas
 
 
+# ─── LIMPIAR HOJA COMPLETA (valores + formato + colores) ─────
+def _limpiar_hoja_completa(sh, ws) -> None:
+    """
+    Borra valores Y formato de toda la hoja.
+    ws.clear() solo borra valores — las celdas conservan color de fondo,
+    lo que produce las manchas amarillas en celdas vacías.
+    """
+    try:
+        sh.batch_update({
+            "requests": [
+                {
+                    "updateCells": {
+                        "range": {
+                            "sheetId": ws.id,
+                            "startRowIndex": 0,
+                            "startColumnIndex": 0,
+                        },
+                        "fields": "userEnteredValue",
+                    }
+                },
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": ws.id,
+                            "startRowIndex": 0,
+                            "startColumnIndex": 0,
+                        },
+                        "cell": {
+                            "userEnteredFormat": {
+                                "backgroundColor":     {"red": 1, "green": 1, "blue": 1},
+                                "horizontalAlignment": "LEFT",
+                                "textFormat": {
+                                    "bold":     False,
+                                    "fontSize": 10,
+                                    "foregroundColor": {"red": 0, "green": 0, "blue": 0},
+                                },
+                            }
+                        },
+                        "fields": "userEnteredFormat",
+                    }
+                },
+            ]
+        })
+    except Exception as e:
+        logger.warning(f"⚠️ _limpiar_hoja_completa falló: {e} — usando clear()")
+        try:
+            ws.clear()
+        except Exception:
+            pass
+
+
 # ─── SINCRONIZACIÓN ───────────────────────────────────────────
 def sincronizar_google_sheets(historial: dict) -> bool:
     if not GSHEETS_CREDS or not GSHEETS_SHEET_ID:
@@ -145,12 +196,13 @@ def sincronizar_google_sheets(historial: dict) -> bool:
 
                 if filas_actuales > 0:
                     marcados = _leer_apostados_del_sheet(ws, min(filas_actuales, n))
-                    # Asociar al ID del partido por posición (mismo orden sort)
                     for idx, marcado in enumerate(marcados):
                         if idx < n and marcado:
                             apostados_ids.add(ames_s[idx].get("id", ""))
 
-                ws.clear()
+                # Limpiar valores Y formato completamente (evita "manchas")
+                _limpiar_hoja_completa(sh, ws)
+
             except gspread.WorksheetNotFound:
                 ws = sh.add_worksheet(title=mes, rows=500, cols=22)
 
