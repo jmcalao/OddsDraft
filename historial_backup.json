@@ -263,13 +263,79 @@
       "under25_bonus": 4,
       "cuota_under25": 2.12,
       "martingala_procesado": false
+    },
+    {
+      "id": "2cd47a8c3fac2e29",
+      "fecha": "2026-04-24",
+      "tipo": "draw",
+      "local": "Al-Fateh",
+      "visitante": "Al-Khaleej",
+      "liga": "Saudi Pro League",
+      "sport_key": "soccer_saudi_arabia_pro_league",
+      "score": 77,
+      "cuota": 3.58,
+      "hora_col": "10:47",
+      "commence_time": "2026-04-24T15:47:00Z",
+      "apuesta_cop": 6750,
+      "ganancia_pot": 17415,
+      "estado": "pendiente",
+      "resultado": null,
+      "ganancia_real": 0,
+      "nivel_martingala": 4,
+      "under25_bonus": 0,
+      "cuota_under25": 2.34,
+      "martingala_procesado": false
+    },
+    {
+      "id": "6c776485f1592b38",
+      "fecha": "2026-04-24",
+      "tipo": "draw",
+      "local": "Al-Hazem",
+      "visitante": "Al-Riyadh",
+      "liga": "Saudi Pro League",
+      "sport_key": "soccer_saudi_arabia_pro_league",
+      "score": 77,
+      "cuota": 3.46,
+      "hora_col": "11:10",
+      "commence_time": "2026-04-24T16:10:00Z",
+      "apuesta_cop": 6750,
+      "ganancia_pot": 16605,
+      "estado": "pendiente",
+      "resultado": null,
+      "ganancia_real": 0,
+      "nivel_martingala": 4,
+      "under25_bonus": 0,
+      "cuota_under25": 1.96,
+      "martingala_procesado": false
+    },
+    {
+      "id": "ddab791dd39fb4b6",
+      "fecha": "2026-04-24",
+      "tipo": "draw",
+      "local": "Fortuna Düsseldorf",
+      "visitante": "Dynamo Dresden",
+      "liga": "Bundesliga 2 - Germany",
+      "sport_key": "soccer_germany_bundesliga2",
+      "score": 91,
+      "cuota": 3.52,
+      "hora_col": "11:30",
+      "commence_time": "2026-04-24T16:30:00Z",
+      "apuesta_cop": 6750,
+      "ganancia_pot": 17010,
+      "estado": "pendiente",
+      "resultado": null,
+      "ganancia_real": 0,
+      "nivel_martingala": 4,
+      "under25_bonus": 4,
+      "cuota_under25": 2.13,
+      "martingala_procesado": false
     }
   ],
   "stats": {
-    "total": 12,
+    "total": 15,
     "ganadas": 3,
     "perdidas": 5,
-    "pendientes": 4,
+    "pendientes": 7,
     "ganancia_neta": 1100
   },
   "martingala": {
@@ -279,9 +345,9 @@
     "stop_notificado": false
   },
   "apostados_ids": [
-    "6e2d632552b58e62",
     "55a087bce14a77fc",
     "793639aa08ac1b68",
-    "45ae99c34c9905f5"
+    "45ae99c34c9905f5",
+    "6e2d632552b58e62"
   ]
 }
