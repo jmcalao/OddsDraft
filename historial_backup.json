@@ -564,13 +564,13 @@
       "commence_time": "2026-04-25T15:30:00Z",
       "apuesta_cop": 2000,
       "ganancia_pot": 4880,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "1-2",
+      "ganancia_real": -2000,
       "nivel_martingala": 1,
       "under25_bonus": 10,
       "cuota_under25": 2.01,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "88ca6f27312584f9",
@@ -586,13 +586,13 @@
       "commence_time": "2026-04-25T16:00:00Z",
       "apuesta_cop": 2000,
       "ganancia_pot": 5300,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "ganada",
+      "resultado": "1-1",
+      "ganancia_real": 5300,
       "nivel_martingala": 1,
       "under25_bonus": 4,
       "cuota_under25": 2.11,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "19477a22dac502cb",
@@ -637,14 +637,36 @@
       "under25_bonus": 0,
       "cuota_under25": 2.37,
       "martingala_procesado": false
+    },
+    {
+      "id": "371bb1df6d56fca3",
+      "fecha": "2026-04-25",
+      "tipo": "draw",
+      "local": "Botafogo",
+      "visitante": "Internacional",
+      "liga": "Brazil Série A",
+      "sport_key": "soccer_brazil_campeonato",
+      "score": 73,
+      "cuota": 3.03,
+      "hora_col": "16:30",
+      "commence_time": "2026-04-25T21:30:00Z",
+      "apuesta_cop": 2000,
+      "ganancia_pot": 4060,
+      "estado": "pendiente",
+      "resultado": null,
+      "ganancia_real": 0,
+      "nivel_martingala": 1,
+      "under25_bonus": 0,
+      "cuota_under25": 1.71,
+      "martingala_procesado": false
     }
   ],
   "stats": {
-    "total": 29,
-    "ganadas": 8,
-    "perdidas": 17,
-    "pendientes": 4,
-    "ganancia_neta": -5247
+    "total": 30,
+    "ganadas": 9,
+    "perdidas": 18,
+    "pendientes": 3,
+    "ganancia_neta": -1947
   },
   "martingala": {
     "nivel": 1,
@@ -653,12 +675,12 @@
     "stop_notificado": false
   },
   "apostados_ids": [
-    "8d5576d560f0aaf5",
+    "c5867352deed4824",
+    "793639aa08ac1b68",
     "55a087bce14a77fc",
     "45ae99c34c9905f5",
-    "793639aa08ac1b68",
+    "8d5576d560f0aaf5",
     "6e2d632552b58e62",
-    "c5867352deed4824",
     "e02618f13f77cfa4"
   ]
 }
