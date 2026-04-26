@@ -272,7 +272,7 @@ def sincronizar_google_sheets(historial: dict) -> bool:
                     potencial if apostado else "",
                     gan_neta,
                     bal,
-                    f"+{bonus}pts" if bonus else "",
+                    f"U2.5 +{bonus}pts" if bonus else "",
                 ])
 
             # ── 2. Filas de totales ───────────────────────────
