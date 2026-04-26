@@ -740,13 +740,13 @@
       "commence_time": "2026-04-26T15:30:00Z",
       "apuesta_cop": 2000,
       "ganancia_pot": 4440,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "1-2",
+      "ganancia_real": -2000,
       "nivel_martingala": 1,
       "under25_bonus": 0,
       "cuota_under25": 1.81,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "efccdda77cd6c9dc",
@@ -762,13 +762,13 @@
       "commence_time": "2026-04-26T16:00:00Z",
       "apuesta_cop": 2000,
       "ganancia_pot": 5560,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "1-0",
+      "ganancia_real": -2000,
       "nivel_martingala": 1,
       "under25_bonus": 0,
       "cuota_under25": 2.83,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "91401f320f67e178",
@@ -813,33 +813,56 @@
       "under25_bonus": 0,
       "cuota_under25": 1.76,
       "martingala_procesado": false
+    },
+    {
+      "id": "9d106d93e0dfb5de",
+      "fecha": "2026-04-26",
+      "tipo": "draw",
+      "local": "Bragantino-SP",
+      "visitante": "Palmeiras",
+      "liga": "Brazil Série A",
+      "sport_key": "soccer_brazil_campeonato",
+      "score": 73,
+      "cuota": 3.09,
+      "hora_col": "16:30",
+      "commence_time": "2026-04-26T21:30:00Z",
+      "apuesta_cop": 4500,
+      "ganancia_pot": 9405,
+      "estado": "pendiente",
+      "resultado": null,
+      "ganancia_real": 0,
+      "nivel_martingala": 3,
+      "under25_bonus": 0,
+      "cuota_under25": 1.64,
+      "martingala_procesado": false
     }
   ],
   "stats": {
-    "total": 37,
+    "total": 38,
     "ganadas": 14,
-    "perdidas": 19,
-    "pendientes": 4,
-    "ganancia_neta": 24383
+    "perdidas": 21,
+    "pendientes": 3,
+    "ganancia_neta": 20383
   },
   "martingala": {
-    "nivel": 1,
-    "racha_perdidas": 0,
+    "nivel": 3,
+    "racha_perdidas": 2,
     "activa": true,
     "stop_notificado": false
   },
   "apostados_ids": [
+    "371bb1df6d56fca3",
+    "e02618f13f77cfa4",
+    "55a087bce14a77fc",
+    "c5867352deed4824",
+    "8d5576d560f0aaf5",
+    "ce249eefe8b3b00e",
+    "c055a912165e5360",
+    "6e2d632552b58e62",
+    "45ae99c34c9905f5",
+    "05597724e5506db5",
     "19477a22dac502cb",
     "793639aa08ac1b68",
-    "c5867352deed4824",
-    "371bb1df6d56fca3",
-    "6e2d632552b58e62",
-    "55a087bce14a77fc",
-    "8d5576d560f0aaf5",
-    "e8f5cb4f8171241f",
-    "45ae99c34c9905f5",
-    "ce249eefe8b3b00e",
-    "e02618f13f77cfa4",
-    "05597724e5506db5"
+    "e8f5cb4f8171241f"
   ]
 }
