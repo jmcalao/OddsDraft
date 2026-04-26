@@ -784,13 +784,13 @@
       "commence_time": "2026-04-26T18:00:00Z",
       "apuesta_cop": 2000,
       "ganancia_pot": 4560,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "ganada",
+      "resultado": "0-0",
+      "ganancia_real": 4560,
       "nivel_martingala": 1,
       "under25_bonus": 0,
       "cuota_under25": 1.98,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "c055a912165e5360",
@@ -839,30 +839,30 @@
   ],
   "stats": {
     "total": 38,
-    "ganadas": 14,
+    "ganadas": 15,
     "perdidas": 21,
-    "pendientes": 3,
-    "ganancia_neta": 20383
+    "pendientes": 2,
+    "ganancia_neta": 24943
   },
   "martingala": {
-    "nivel": 3,
-    "racha_perdidas": 2,
+    "nivel": 1,
+    "racha_perdidas": 0,
     "activa": true,
     "stop_notificado": false
   },
   "apostados_ids": [
-    "371bb1df6d56fca3",
-    "e02618f13f77cfa4",
-    "55a087bce14a77fc",
-    "c5867352deed4824",
-    "8d5576d560f0aaf5",
-    "ce249eefe8b3b00e",
-    "c055a912165e5360",
-    "6e2d632552b58e62",
-    "45ae99c34c9905f5",
     "05597724e5506db5",
     "19477a22dac502cb",
     "793639aa08ac1b68",
-    "e8f5cb4f8171241f"
+    "55a087bce14a77fc",
+    "371bb1df6d56fca3",
+    "c055a912165e5360",
+    "8d5576d560f0aaf5",
+    "c5867352deed4824",
+    "45ae99c34c9905f5",
+    "e02618f13f77cfa4",
+    "e8f5cb4f8171241f",
+    "6e2d632552b58e62",
+    "ce249eefe8b3b00e"
   ]
 }
