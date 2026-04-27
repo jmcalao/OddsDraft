@@ -300,7 +300,7 @@ def main():
             if not msg:
                 continue
 
-            #--Análisis Gemini por partido (opcional) ────────
+            # ── Análisis Gemini por partido (opcional) ────────
             gemini_txt = analizar_partido_gemini(
                 local         = c["local"],
                 visitante     = c["visitante"],
@@ -313,9 +313,9 @@ def main():
                 under25_bonus = c["under25_bonus"],
                 razones       = c["razones_draw"],
             )
-            if  gemini_txt:
+            if gemini_txt:
                 msg = msg + gemini_txt
-                
+
             if enviar_telegram(msg):
                 alertas_enviadas += 1
                 log_draws.append((
@@ -387,7 +387,7 @@ def main():
 
         # ── Cierre del día ────────────────────────────────────
         if es_bloque_cierre():
-            logger.info("🌙 Bloque cierre — análisis Gemini + backup GitHub...")
+            logger.info("🌙 Bloque cierre — análisis Claude + backup GitHub...")
             analisis_diario_gemini(historial)
             backup_historial_github()
 
