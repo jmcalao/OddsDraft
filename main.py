@@ -45,7 +45,7 @@ from telegram_bot import (
     formatear_sin_alertas, formatear_resumen_alertas,
     formatear_stop_martingala,
 )
-from claude_ai import analisis_diario_claude
+from gemini_ai import analisis_diario_gemini, analizar_partido_gemini
 from backup   import backup_historial_github
 from utils    import hora_local_col
 
@@ -300,6 +300,22 @@ def main():
             if not msg:
                 continue
 
+            #--Análisis Gemini por partido (opcional) ────────
+            gemini_txt = analizar_partido_gemini(
+                local         = c["local"],
+                visitante     = c["visitante"],
+                liga          = c["liga"],
+                score         = c["score_draw"],
+                cuota_emp     = c["cuota_emp"],
+                cuota_loc     = c["cuota_loc"],
+                cuota_vis     = c["cuota_vis"],
+                draw_rate     = c["draw_rate"],
+                under25_bonus = c["under25_bonus"],
+                razones       = c["razones_draw
+            )
+            if  gemini_txt:
+                msg = msg + gemini_txt
+                
             if enviar_telegram(msg):
                 alertas_enviadas += 1
                 log_draws.append((
@@ -371,8 +387,8 @@ def main():
 
         # ── Cierre del día ────────────────────────────────────
         if es_bloque_cierre():
-            logger.info("🌙 Bloque cierre — análisis Claude + backup GitHub...")
-            analisis_diario_claude(historial)
+            logger.info("🌙 Bloque cierre — análisis Gemini + backup GitHub...")
+            analisis_diario_gemini(historial)
             backup_historial_github()
 
     except Exception as e:
