@@ -311,7 +311,7 @@ def main():
                 cuota_vis     = c["cuota_vis"],
                 draw_rate     = c["draw_rate"],
                 under25_bonus = c["under25_bonus"],
-                razones       = c["razones_draw
+                razones       = c["razones_draw"],
             )
             if  gemini_txt:
                 msg = msg + gemini_txt
