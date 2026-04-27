@@ -60,7 +60,7 @@ CHAT_ID           = _env_str("CHAT_ID")
 RAPIDAPI_KEY      = _env_str("RAPIDAPI_KEY")
 GSHEETS_CREDS     = _env_str("GOOGLE_SERVICE_ACCOUNT_JSON")
 GSHEETS_SHEET_ID  = _env_str("GOOGLE_SHEET_ID")
-GEMINI_API_KEY = _env_str("GEMINI_API_KEY")
+GEMINI_API_KEY    = _env_str("GEMINI_API_KEY")
 
 # ─── PARÁMETROS OPERATIVOS ────────────────────────────────────
 BANKROLL           = _env_int("BANKROLL",           300_000)
