@@ -300,13 +300,12 @@ def marcar_stop_notificado(historial: dict) -> None:
 # ─── ESTADÍSTICAS ─────────────────────────────────────────────
 def calcular_stats_detalladas(historial: dict) -> dict | None:
     """
-    FIX v5.0.2: Solo cuenta alertas con tipo EXACTAMENTE "draw".
-    Las alertas heredadas de v4.x (doble_draw, under35, doble_under)
-    no se mezclan en los conteos.
+    Solo cuenta alertas con tipo EXACTAMENTE "draw".
+    Incluye: WR, ROI por score, drawdown, racha máxima,
+    cuota promedio W vs L, score promedio W vs L.
     """
     alertas = historial["alertas"]
 
-    # Solo tipo "draw" puro — no "doble_draw" ni ninguna variante
     draws_all = [
         a for a in alertas
         if a.get("tipo") == "draw"
@@ -316,10 +315,17 @@ def calcular_stats_detalladas(historial: dict) -> dict | None:
     if not draws_all:
         return None
 
+    # Ordenar cronológicamente para cálculos de racha y drawdown
+    draws_ord = sorted(
+        draws_all,
+        key=lambda x: (x.get("fecha", ""), x.get("hora_col", ""))
+    )
+
     draws_w   = sum(1 for a in draws_all if a["estado"] == "ganada")
     draws_gan = sum(a.get("ganancia_real", 0) for a in draws_all)
     draws_stk = sum(int(a.get("apuesta_cop", 0)) for a in draws_all) or 1
 
+    # ── Stats por rango de score ──────────────────────────────
     def stats_score(min_s, max_s):
         subset = [a for a in draws_all if min_s <= a.get("score", 0) < max_s]
         if not subset:
@@ -334,6 +340,72 @@ def calcular_stats_detalladas(historial: dict) -> dict | None:
             "roi":      round(gan_neta / staked * 100, 1),
         }
 
+    # ── Drawdown ──────────────────────────────────────────────
+    # Reconstruye la curva de balance desde el bankroll inicial
+    balance     = BANKROLL
+    pico        = BANKROLL
+    max_dd      = 0        # máxima caída absoluta (negativo)
+    max_dd_pct  = 0.0      # máxima caída en % del pico
+    bal_actual  = BANKROLL
+
+    for a in draws_ord:
+        gan = a.get("ganancia_real", 0)
+        if not isinstance(gan, (int, float)):
+            continue
+        balance += gan
+        if balance > pico:
+            pico = balance
+        dd     = balance - pico          # siempre <= 0
+        dd_pct = (dd / pico * 100) if pico > 0 else 0
+        if dd < max_dd:
+            max_dd     = dd
+            max_dd_pct = dd_pct
+        bal_actual = balance
+
+    dd_actual     = bal_actual - pico
+    dd_actual_pct = round((dd_actual / pico * 100), 1) if pico > 0 else 0
+
+    # ── Rachas ────────────────────────────────────────────────
+    max_racha_perd  = 0
+    max_racha_gan   = 0
+    racha_perd_act  = 0
+    racha_gan_act   = 0
+    racha_perd_max  = 0
+    racha_gan_max   = 0
+
+    for a in draws_ord:
+        if a["estado"] == "perdida":
+            racha_perd_act += 1
+            racha_gan_act   = 0
+            racha_perd_max  = max(racha_perd_max, racha_perd_act)
+        else:
+            racha_gan_act  += 1
+            racha_perd_act  = 0
+            racha_gan_max   = max(racha_gan_max, racha_gan_act)
+
+    # Rachas actuales (las que van al final de la lista)
+    racha_actual_perd = 0
+    racha_actual_gan  = 0
+    for a in reversed(draws_ord):
+        if a["estado"] == "perdida" and racha_actual_gan == 0:
+            racha_actual_perd += 1
+        elif a["estado"] == "ganada" and racha_actual_perd == 0:
+            racha_actual_gan += 1
+        else:
+            break
+
+    # ── Cuota promedio W vs L ─────────────────────────────────
+    cuotas_w = [a.get("cuota", 0) for a in draws_all if a["estado"] == "ganada" and a.get("cuota")]
+    cuotas_l = [a.get("cuota", 0) for a in draws_all if a["estado"] == "perdida" and a.get("cuota")]
+    avg_cuota_w = round(sum(cuotas_w) / len(cuotas_w), 2) if cuotas_w else 0
+    avg_cuota_l = round(sum(cuotas_l) / len(cuotas_l), 2) if cuotas_l else 0
+
+    # ── Score promedio W vs L ─────────────────────────────────
+    scores_w = [a.get("score", 0) for a in draws_all if a["estado"] == "ganada"]
+    scores_l = [a.get("score", 0) for a in draws_all if a["estado"] == "perdida"]
+    avg_score_w = round(sum(scores_w) / len(scores_w), 1) if scores_w else 0
+    avg_score_l = round(sum(scores_l) / len(scores_l), 1) if scores_l else 0
+
     pendientes_draw = sum(
         1 for a in alertas
         if a.get("tipo") == "draw" and a.get("estado") == "pendiente"
@@ -347,9 +419,27 @@ def calcular_stats_detalladas(historial: dict) -> dict | None:
             "roi":           round(draws_gan / draws_stk * 100, 1),
             "ganancia_neta": draws_gan,
         },
-        "score_70_79":         stats_score(70, 80),
-        "score_80_89":         stats_score(80, 90),
-        "score_90":            stats_score(90, 101),
+        "score_70_79":  stats_score(70, 80),
+        "score_80_89":  stats_score(80, 90),
+        "score_90":     stats_score(90, 101),
+        # Drawdown
+        "max_drawdown":     max_dd,
+        "max_drawdown_pct": round(max_dd_pct, 1),
+        "dd_actual":        dd_actual,
+        "dd_actual_pct":    dd_actual_pct,
+        "balance_actual":   bal_actual,
+        "balance_pico":     pico,
+        # Rachas
+        "racha_perd_max":   racha_perd_max,
+        "racha_gan_max":    racha_gan_max,
+        "racha_actual_perd": racha_actual_perd,
+        "racha_actual_gan":  racha_actual_gan,
+        # Cuotas y scores
+        "avg_cuota_w":  avg_cuota_w,
+        "avg_cuota_l":  avg_cuota_l,
+        "avg_score_w":  avg_score_w,
+        "avg_score_l":  avg_score_l,
+        # Meta
         "total_resueltas":     len(draws_all),
         "pendientes_draw":     pendientes_draw,
         "ganancia_neta_total": draws_gan,
@@ -361,22 +451,22 @@ def formatear_reporte_stats(stats: dict | None, pendientes_count: int) -> str:
         return "📊 Sin resultados resueltos aún."
 
     lines = ["📊 <b>ESTADÍSTICAS ACUMULADAS</b>\n"]
-    gan   = stats["ganancia_neta_total"]
-    pend  = stats.get("pendientes_draw", pendientes_count)
+    gan  = stats["ganancia_neta_total"]
+    pend = stats.get("pendientes_draw", pendientes_count)
+    d    = stats["draw"]
 
+    # ── Resumen general ───────────────────────────────────────
     lines.append(
-        f"🎯 Empates resueltos: {stats['total_resueltas']} | "
-        f"⏳ Pendientes: {pend}"
+        f"🎯 Resueltos: {stats['total_resueltas']} | ⏳ Pendientes: {pend}"
     )
-    lines.append(f"💰 Ganancia neta: {'+' if gan >= 0 else ''}${gan:,} COP\n")
-
-    d = stats["draw"]
+    lines.append(f"💰 Ganancia neta: {'+' if gan >= 0 else ''}${gan:,} COP")
     lines.append(
-        f"🟢 <b>Empates:</b> {d['ganadas']}/{d['total']} "
-        f"({d['win_rate']}% WR | ROI {d['roi']}%)"
+        f"🟢 Empates: {d['ganadas']}/{d['total']} "
+        f"({d['win_rate']}% WR | ROI {d['roi']}%)\n"
     )
 
-    lines.append("\n📈 <b>Win rate por score:</b>")
+    # ── Win rate por score ────────────────────────────────────
+    lines.append("📈 <b>Win rate por score:</b>")
     for rango, key in [
         ("70-79", "score_70_79"),
         ("80-89", "score_80_89"),
@@ -389,4 +479,50 @@ def formatear_reporte_stats(stats: dict | None, pendientes_count: int) -> str:
                 f"({s['win_rate']}% | ROI {s['roi']}%)"
             )
 
+    # ── Cuota y score promedio ────────────────────────────────
+    lines.append(
+        f"\n🎰 <b>Cuota promedio:</b> "
+        f"✅ Ganadas: {stats['avg_cuota_w']} | "
+        f"❌ Perdidas: {stats['avg_cuota_l']}"
+    )
+    lines.append(
+        f"🔢 <b>Score promedio:</b> "
+        f"✅ Ganados: {stats['avg_score_w']} | "
+        f"❌ Perdidos: {stats['avg_score_l']}"
+    )
+
+    # ── Rachas ────────────────────────────────────────────────
+    lines.append(f"\n🔁 <b>Rachas:</b>")
+    lines.append(
+        f"  Máx. perdedora histórica: {stats['racha_perd_max']} seguidas"
+    )
+    lines.append(
+        f"  Máx. ganadora histórica:  {stats['racha_gan_max']} seguidas"
+    )
+    if stats["racha_actual_perd"] > 0:
+        lines.append(
+            f"  ⚠️ Racha actual: {stats['racha_actual_perd']} pérdidas seguidas"
+        )
+    elif stats["racha_actual_gan"] > 0:
+        lines.append(
+            f"  🔥 Racha actual: {stats['racha_actual_gan']} victorias seguidas"
+        )
+
+    # ── Drawdown ──────────────────────────────────────────────
+    lines.append(f"\n📉 <b>Drawdown:</b>")
+    mdd     = stats["max_drawdown"]
+    mdd_pct = stats["max_drawdown_pct"]
+    lines.append(
+        f"  Max histórico: ${abs(mdd):,} COP ({abs(mdd_pct)}%)"
+    )
+    dd_act = stats["dd_actual"]
+    if dd_act < 0:
+        lines.append(
+            f"  ⚠️ Actual: ${abs(dd_act):,} COP por debajo del pico "
+            f"(${stats['balance_pico']:,})"
+        )
+    else:
+        lines.append(f"  ✅ En máximo histórico: ${stats['balance_actual']:,} COP")
+
     return "\n".join(lines)
+
