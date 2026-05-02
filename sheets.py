@@ -457,3 +457,163 @@ def sincronizar_google_sheets(historial: dict) -> bool:
     except Exception as e:
         logger.error(f"❌ Error Google Sheets: {type(e).__name__}: {e}")
         return False
+
+
+# ═══════════════════════════════════════════════════════════════
+#  PESTAÑA PARLAY
+# ═══════════════════════════════════════════════════════════════
+def sincronizar_parlay_sheet(historial: dict) -> bool:
+    """
+    Escribe/actualiza la pestaña 'Parlay' en Google Sheets.
+
+    ESTRUCTURA:
+    Cada parlay ocupa un bloque de filas:
+      - Fila de cabecera del parlay (fecha, cuota total, stake, estado)
+      - Una fila por pick
+      - Fila de separación
+
+    ESTADO: 'pendiente' / 'ganado' / 'perdido' — lo marcás vos manualmente
+    cambiando la celda de estado en el sheet, igual que la columna Y de empates.
+    """
+    if not GSHEETS_CREDS or not GSHEETS_SHEET_ID:
+        return False
+
+    parlays = historial.get("parlays", [])
+    if not parlays:
+        return False
+
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+
+        creds = Credentials.from_service_account_info(
+            json.loads(GSHEETS_CREDS),
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive",
+            ],
+        )
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key(GSHEETS_SHEET_ID)
+
+        # Obtener o crear pestaña Parlay
+        try:
+            ws = sh.worksheet("Parlay")
+            _limpiar_hoja_completa(sh, ws)
+        except gspread.WorksheetNotFound:
+            ws = sh.add_worksheet(title="Parlay", rows=1000, cols=10)
+
+        HEADERS_P = [
+            "Fecha", "Picks", "Cuota Total", "Stake",
+            "Ganancia Pot.", "Estado", "Ganancia Real", "ID",
+        ]
+        HEADERS_PICK = [
+            "", "#", "Deporte", "Evento", "Pick",
+            "Cuota", "EV%", "Liga", "Hora Col", "",
+        ]
+
+        all_rows  = [HEADERS_P]
+        fmt_reqs  = []
+        fila_act  = 2   # fila actual en el sheet (1-indexed, fila 1 = header)
+
+        # Header de tabla
+        fmt_reqs.append({
+            "range": "A1:H1",
+            "format": _fmt(bold=True, fg="FFFFFF", bg="1F3864", size=10),
+        })
+
+        for parlay in sorted(parlays, key=lambda x: x.get("fecha", ""), reverse=True):
+            picks      = parlay.get("picks", [])
+            estado     = parlay.get("estado", "pendiente")
+            gan_real   = parlay.get("ganancia_real", 0)
+
+            # Color de la fila cabecera según estado
+            if estado == "ganado":
+                bg_header = "B6D7A8"   # verde
+            elif estado == "perdido":
+                bg_header = "EA9999"   # rojo
+            else:
+                bg_header = "FFE599"   # amarillo = pendiente
+
+            # Fila cabecera del parlay
+            all_rows.append([
+                parlay.get("fecha", ""),
+                len(picks),
+                f"x{parlay.get('cuota_total', 0):,.0f}",
+                f"${parlay.get('stake', 0):,}",
+                f"${parlay.get('ganancia_pot', 0):,}",
+                estado.upper(),
+                f"${gan_real:,}" if gan_real else "",
+                parlay.get("id", ""),
+            ])
+            fmt_reqs.append({
+                "range": f"A{fila_act}:H{fila_act}",
+                "format": _fmt(bold=True, bg=bg_header, size=10),
+            })
+            fila_act += 1
+
+            # Sub-header de picks
+            all_rows.append(HEADERS_PICK)
+            fmt_reqs.append({
+                "range": f"A{fila_act}:J{fila_act}",
+                "format": _fmt(bold=True, fg="FFFFFF", bg="434343", size=9),
+            })
+            fila_act += 1
+
+            # Filas de picks
+            for i, p in enumerate(picks, 1):
+                all_rows.append([
+                    "",
+                    i,
+                    p.get("deporte", ""),
+                    p.get("evento", ""),
+                    p.get("pick", ""),
+                    p.get("cuota", ""),
+                    f"+{p.get('ev', 0)}%",
+                    p.get("liga", ""),
+                    p.get("hora_col", ""),
+                    "",
+                ])
+                bg_pick = "F3F3F3" if i % 2 == 0 else "FFFFFF"
+                fmt_reqs.append({
+                    "range": f"A{fila_act}:J{fila_act}",
+                    "format": _fmt(bg=bg_pick, size=9),
+                })
+                fila_act += 1
+
+            # Fila separadora vacía
+            all_rows.append([""] * 10)
+            fila_act += 1
+
+        ws.update("A1", all_rows, value_input_option="USER_ENTERED")
+
+        try:
+            ws.batch_format(fmt_reqs)
+        except AttributeError:
+            pass
+
+        # Anchos de columna
+        anchos = [100, 50, 90, 220, 120, 70, 65, 170, 75, 50]
+        dim_reqs = []
+        for ci, w in enumerate(anchos):
+            dim_reqs.append({
+                "updateDimensionProperties": {
+                    "range": {
+                        "sheetId": ws.id,
+                        "dimension": "COLUMNS",
+                        "startIndex": ci,
+                        "endIndex": ci + 1,
+                    },
+                    "properties": {"pixelSize": w},
+                    "fields": "pixelSize",
+                }
+            })
+        sh.batch_update({"requests": dim_reqs})
+        ws.freeze(rows=1)
+
+        logger.info(f"✅ Pestaña Parlay sincronizada: {len(parlays)} parlay(s)")
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ sincronizar_parlay_sheet: {type(e).__name__}: {e}")
+        return False
