@@ -39,7 +39,7 @@ from historial import (
     get_estado_martingala, necesita_stop_alert, marcar_stop_notificado,
     calcular_stats_detalladas, formatear_reporte_stats,
 )
-from sheets import sincronizar_google_sheets
+from sheets import sincronizar_google_sheets, sincronizar_parlay_sheet
 from telegram_bot import (
     enviar_telegram, formatear_alerta_draw,
     formatear_sin_alertas, formatear_resumen_alertas,
@@ -47,6 +47,7 @@ from telegram_bot import (
 )
 from gemini_ai import analisis_diario_gemini, analizar_partido_gemini
 from backup   import backup_historial_github
+from parlays  import correr_parlay
 from utils    import hora_local_col
 
 logging.basicConfig(
@@ -384,6 +385,11 @@ def main():
             f"✅ Fin v5.0 — Empates:{alertas_enviadas} | "
             f"H2H:{rapidapi_h2h_calls} calls | Mart nivel:{nivel_mart}"
         )
+
+        # ── Parlay semanal (sábado y domingo) ────────────────
+        from parlays import correr_parlay
+        if correr_parlay(historial):
+            sincronizar_parlay_sheet(historial)
 
         # ── Cierre del día ────────────────────────────────────
         if es_bloque_cierre():
