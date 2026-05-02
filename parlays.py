@@ -1,26 +1,15 @@
 # ═══════════════════════════════════════════════════════════════
-#  🤖 SUPERBOT v5.0 — parlays.py
+#  🤖 SUPERBOT v5.0 — parlays.py  (v2)
 #
-#  Parlay semanal de 10-14 picks — sábado y domingo.
-#  Stake fijo: $2.000 COP (boleto de lotería controlado).
-#
-#  LÓGICA DE SELECCIÓN:
-#  1. Consulta The Odds API para TODOS los deportes disponibles
-#  2. Por cada partido/evento, calcula EV de cada outcome
-#  3. Selecciona los N picks con mayor EV positivo y cuota razonable
-#  4. Filtra para no acumular el mismo deporte más de 4 veces
-#  5. Calcula cuota combinada y ganancia potencial
-#  6. Gemini escribe un comentario (opcional)
-#  7. Envía alerta Telegram + registra en sheet
-#
-#  CUOTA OBJETIVO POR PICK: 1.70 – 2.80
-#  (más altas reducen probabilidad real, más bajas no valen la pena)
-#
-#  CONSUMO API: ~1-2 requests por parlay → ~8-10/mes para 2/semana
+#  CAMBIOS v2:
+#  ✅ Fix: fallback de relleno también respeta límite por deporte
+#  ✅ Preferencia por equipo LOCAL (bonus EV +2%)
+#  ✅ Gemini con Google Search — busca noticias reales de cada pick
+#  ✅ Mensaje incluye contexto por pick (bajas, forma, playoff...)
 # ═══════════════════════════════════════════════════════════════
 
 import logging
-import json
+import math
 from datetime import datetime, timezone, timedelta
 
 from config import API_KEY, ODDS_BASE, SESION, BANKROLL
@@ -28,115 +17,81 @@ from utils  import hora_colombia, safe_html
 
 logger = logging.getLogger(__name__)
 
-# ── Configuración del parlay ──────────────────────────────────
-PARLAY_STAKE        = 2_000          # COP fijo, no cambia con martingala
-PARLAY_MIN_PICKS    = 10
-PARLAY_MAX_PICKS    = 14
-PARLAY_MIN_CUOTA    = 1.65           # cuota mínima por pick
-PARLAY_MAX_CUOTA    = 2.90           # cuota máxima por pick
-PARLAY_MAX_POR_DEPORTE = 4           # máximo picks del mismo deporte
+PARLAY_STAKE           = 2_000
+PARLAY_MIN_PICKS       = 10
+PARLAY_MAX_PICKS       = 14
+PARLAY_MIN_CUOTA       = 1.65
+PARLAY_MAX_CUOTA       = 2.90
+PARLAY_MAX_POR_DEPORTE = 4      # máximo picks del mismo deporte — SIEMPRE se respeta
+LOCAL_EV_BONUS         = 0.02   # bonus EV para equipos locales
 
-# Deportes a consultar — en orden de prioridad
-# The Odds API los llama "sports keys"
 DEPORTES_PARLAY = [
-    # Fútbol (varias ligas — ya las conocemos bien)
-    "soccer_epl",
-    "soccer_spain_la_liga",
-    "soccer_germany_bundesliga",
-    "soccer_italy_serie_a",
-    "soccer_france_ligue_one",
-    "soccer_brazil_campeonato",
-    "soccer_argentina_primera_division",
-    "soccer_colombia_primera_a",
-    "soccer_mexico_ligamx",
-    "soccer_usa_mls",
-    # Tenis
-    "tennis_atp_us_open",
-    "tennis_wta_us_open",
-    "tennis_atp_wimbledon",
-    "tennis_wta_wimbledon",
-    "tennis_atp_french_open",
-    # Basketball
-    "basketball_nba",
-    "basketball_euroleague",
-    # Béisbol
-    "baseball_mlb",
-    # Hockey
-    "icehockey_nhl",
-    # Rugby
-    "rugbyleague_nrl",
-    # Americano
-    "americanfootball_nfl",
-    # Cricket
+    "soccer_epl", "soccer_spain_la_liga", "soccer_germany_bundesliga",
+    "soccer_italy_serie_a", "soccer_france_ligue_one",
+    "soccer_brazil_campeonato", "soccer_argentina_primera_division",
+    "soccer_colombia_primera_a", "soccer_mexico_ligamx", "soccer_usa_mls",
+    "tennis_atp_us_open", "tennis_wta_us_open",
+    "tennis_atp_wimbledon", "tennis_wta_wimbledon",
+    "basketball_nba", "basketball_euroleague",
+    "baseball_mlb", "icehockey_nhl",
+    "rugbyleague_nrl", "americanfootball_nfl",
     "cricket_icc_world_cup",
 ]
 
-# Nombres legibles por deporte
-DEPORTE_NOMBRE = {
-    "soccer":           "⚽ Fútbol",
-    "tennis":           "🎾 Tenis",
-    "basketball":       "🏀 Basketball",
-    "baseball":         "⚾ Béisbol",
-    "icehockey":        "🏒 Hockey",
-    "rugbyleague":      "🏉 Rugby",
-    "americanfootball": "🏈 Fútbol Americano",
-    "cricket":          "🏏 Cricket",
+DEPORTE_EMOJI = {
+    "soccer":           "⚽",
+    "tennis":           "🎾",
+    "basketball":       "🏀",
+    "baseball":         "⚾",
+    "icehockey":        "🏒",
+    "rugbyleague":      "🏉",
+    "americanfootball": "🏈",
+    "cricket":          "🏏",
+    "otro":             "🎮",
 }
 
 
-# ─── OBTENER DEPORTES DISPONIBLES ─────────────────────────────
+# ─── HELPERS ──────────────────────────────────────────────────
+def _prefijo_deporte(sport_key: str) -> str:
+    for p in DEPORTE_EMOJI:
+        if sport_key.startswith(p):
+            return p
+    return "otro"
+
+
 def get_sports_disponibles() -> list[str]:
-    """
-    Consulta /sports para obtener los deportes activos ahora.
-    Filtra solo los que están en temporada (in_season=true).
-    Retorna lista de sport_keys disponibles.
-    Costo: 1 request.
-    """
     try:
         r = SESION.get(
             f"{ODDS_BASE}/sports",
             params={"apiKey": API_KEY},
             timeout=15,
         )
-        if not r.ok:
-            logger.warning(f"⚠️ get_sports: {r.status_code}")
-            return DEPORTES_PARLAY[:8]   # fallback a los primeros 8
-
-        sports = r.json()
-        activos = [
-            s["key"] for s in sports
-            if s.get("active") and s.get("has_outrights") is False
-            # has_outrights=False = es un mercado de partidos, no outright
-        ]
-        logger.info(f"📡 {len(activos)} deportes activos en The Odds API")
-        return activos
+        if r.ok:
+            activos = [
+                s["key"] for s in r.json()
+                if s.get("active") and not s.get("has_outrights", True)
+            ]
+            logger.info(f"📡 {len(activos)} deportes activos")
+            return activos
     except Exception as e:
-        logger.warning(f"⚠️ get_sports_disponibles: {e}")
-        return DEPORTES_PARLAY[:8]
+        logger.warning(f"⚠️ get_sports: {e}")
+    return DEPORTES_PARLAY[:10]
 
 
-# ─── OBTENER ODDS PARA PARLAY ─────────────────────────────────
 def get_odds_parlay(sport_keys: list[str]) -> list[dict]:
-    """
-    Obtiene partidos con cuotas h2h para una lista de deportes.
-    Filtra solo eventos de las próximas 48 horas.
-    Costo: 1 request por sport_key (usa batch cuando es posible).
-    """
     todos = []
-    ahora = datetime.now(timezone.utc)
+    ahora  = datetime.now(timezone.utc)
     limite = ahora + timedelta(hours=48)
 
-    # The Odds API permite pasar múltiples sports en una sola llamada
-    # usando el endpoint /sports/upcoming/odds (si está disponible en el plan)
-    # Fallback: iterar por deporte pero limitar a los más activos
-    sports_a_consultar = [s for s in sport_keys if any(
-        s.startswith(dep) for dep in [
-            "soccer", "tennis", "basketball", "baseball",
-            "icehockey", "rugbyleague", "americanfootball"
-        ]
-    )][:12]   # máximo 12 para no gastar demasiados requests
+    priority = ["soccer", "basketball", "icehockey", "americanfootball",
+                "baseball", "tennis", "rugbyleague"]
+    sports_sorted = sorted(
+        [s for s in sport_keys if any(s.startswith(p) for p in priority)],
+        key=lambda x: next((i for i, p in enumerate(priority) if x.startswith(p)), 99)
+    )[:14]
 
-    for sport_key in sports_a_consultar:
+    last_r = None
+    for sport_key in sports_sorted:
         try:
             r = SESION.get(
                 f"{ODDS_BASE}/sports/{sport_key}/odds",
@@ -149,129 +104,113 @@ def get_odds_parlay(sport_keys: list[str]) -> list[dict]:
                 },
                 timeout=20,
             )
+            last_r = r
             if not r.ok:
                 continue
-
-            for evento in r.json():
-                ct = evento.get("commence_time", "")
-                if not ct:
-                    continue
+            for ev in r.json():
+                ct = ev.get("commence_time", "")
                 try:
                     ct_dt = datetime.fromisoformat(ct.replace("Z", "+00:00"))
                     if ahora <= ct_dt <= limite:
-                        evento["_sport_key"] = sport_key
-                        todos.append(evento)
+                        ev["_sport_key"] = sport_key
+                        todos.append(ev)
                 except Exception:
                     pass
-
         except Exception as e:
             logger.warning(f"⚠️ odds {sport_key}: {e}")
-            continue
 
-    usados    = r.headers.get("x-requests-used",      "?") if todos else "?"
-    restantes = r.headers.get("x-requests-remaining", "?") if todos else "?"
-    logger.info(
-        f"📡 Parlay fetch: {len(todos)} eventos | "
-        f"API: {usados} usados / {restantes} restantes"
-    )
+    if last_r:
+        logger.info(
+            f"📡 Parlay: {len(todos)} eventos | "
+            f"API usados:{last_r.headers.get('x-requests-used','?')} "
+            f"restantes:{last_r.headers.get('x-requests-remaining','?')}"
+        )
     return todos
-
-
-# ─── CALCULAR EV DE UN PICK ───────────────────────────────────
-def _ev_pick(cuota: float, prob_base: float) -> float:
-    """EV = prob_real × cuota - 1"""
-    return prob_base * cuota - 1.0
-
-
-def _prefijo_deporte(sport_key: str) -> str:
-    for prefijo in DEPORTE_NOMBRE:
-        if sport_key.startswith(prefijo):
-            return prefijo
-    return "otro"
 
 
 # ─── SELECCIONAR PICKS ────────────────────────────────────────
 def seleccionar_picks(eventos: list[dict]) -> list[dict]:
     """
-    De todos los eventos, selecciona los mejores picks para el parlay.
-
-    Criterios:
-    - Cuota del pick en rango [PARLAY_MIN_CUOTA, PARLAY_MAX_CUOTA]
-    - EV positivo (prob implícita < prob estimada)
-    - No más de PARLAY_MAX_POR_DEPORTE picks del mismo deporte
-    - Máximo un pick por evento (el de mejor EV)
-    - Ordenados por EV descendente, tomar los top PARLAY_MAX_PICKS
-
-    Para fútbol: favorito LOCAL (cuota más baja, más probable).
-    Para otros deportes: el favorito absoluto del evento.
+    Selecciona top picks con EV positivo.
+    REGLAS:
+    - Cuota pick en [PARLAY_MIN_CUOTA, PARLAY_MAX_CUOTA]
+    - Preferencia por equipo LOCAL (bonus +2% EV)
+    - Máximo PARLAY_MAX_POR_DEPORTE por deporte — SIEMPRE, incluso en fallback
+    - Máximo 1 pick por evento
+    - Ordenados por EV desc → top PARLAY_MAX_PICKS
     """
     candidatos = []
+    ahora = datetime.now(timezone.utc)
 
     for evento in eventos:
-        sport_key  = evento.get("_sport_key", "")
-        home_team  = evento.get("home_team", "")
-        away_team  = evento.get("away_team", "")
-        ct         = evento.get("commence_time", "")
-        liga       = evento.get("sport_title", sport_key)
+        sport_key = evento.get("_sport_key", "")
+        home_team = evento.get("home_team", "")
+        away_team = evento.get("away_team", "")
+        ct        = evento.get("commence_time", "")
+        liga      = evento.get("sport_title", sport_key)
+        deporte   = _prefijo_deporte(sport_key)
 
-        # Extraer cuotas h2h
-        cuotas_por_equipo: dict[str, list[float]] = {}
+        # Extraer cuotas promedio por outcome
+        cuotas_map: dict[str, list[float]] = {}
         for bm in evento.get("bookmakers", []):
-            for market in bm.get("markets", []):
-                if market["key"] != "h2h":
+            for mkt in bm.get("markets", []):
+                if mkt["key"] != "h2h":
                     continue
-                for outcome in market["outcomes"]:
-                    nombre = outcome["name"]
-                    precio = float(outcome["price"])
-                    cuotas_por_equipo.setdefault(nombre, []).append(precio)
+                for out in mkt["outcomes"]:
+                    cuotas_map.setdefault(out["name"], []).append(float(out["price"]))
 
-        if not cuotas_por_equipo:
+        if not cuotas_map:
             continue
 
-        # Promediar cuotas por outcome
         avg_cuotas = {
-            nombre: round(sum(v) / len(v), 2)
-            for nombre, v in cuotas_por_equipo.items()
+            name: round(sum(v)/len(v), 2)
+            for name, v in cuotas_map.items()
         }
 
-        # Calcular probabilidades implícitas
-        suma_impl = sum(1.0 / c for c in avg_cuotas.values() if c > 0)
+        suma_impl = sum(1.0/c for c in avg_cuotas.values() if c > 0)
 
-        # Hora Colombia
         try:
-            utc = datetime.fromisoformat(ct.replace("Z", "+00:00"))
+            utc      = datetime.fromisoformat(ct.replace("Z", "+00:00"))
             hora_col = (utc - timedelta(hours=5)).strftime("%H:%M")
             fecha_col = (utc - timedelta(hours=5)).strftime("%Y-%m-%d")
         except Exception:
             hora_col = "??:??"
             fecha_col = hora_colombia().strftime("%Y-%m-%d")
 
-        # Seleccionar el mejor pick del evento (favorito con EV más alto)
+        # Evaluar cada outcome — con bonus para el local
         mejor_pick = None
-        mejor_ev   = -99
+        mejor_ev   = -99.0
 
         for nombre, cuota in avg_cuotas.items():
             if not (PARLAY_MIN_CUOTA <= cuota <= PARLAY_MAX_CUOTA):
                 continue
-            # Probabilidad implícita normalizada
-            prob_impl = (1.0 / cuota) / suma_impl if suma_impl > 0 else 0
-            # Estimamos prob real con ajuste conservador (+5% al favorito)
+
+            prob_impl = (1.0/cuota) / suma_impl if suma_impl > 0 else 0
             prob_real = prob_impl * 1.05
-            ev        = _ev_pick(cuota, prob_real)
+
+            # Bonus local
+            es_local = (nombre == home_team)
+            ev = prob_real * cuota - 1.0
+            if es_local:
+                ev += LOCAL_EV_BONUS
+
             if ev > mejor_ev:
                 mejor_ev   = ev
                 mejor_pick = {
-                    "evento":     f"{home_team} vs {away_team}",
-                    "pick":       nombre,
-                    "cuota":      cuota,
-                    "prob_impl":  round(prob_impl * 100, 1),
-                    "ev":         round(ev * 100, 2),
-                    "liga":       liga,
-                    "sport_key":  sport_key,
-                    "deporte":    _prefijo_deporte(sport_key),
-                    "hora_col":   hora_col,
-                    "fecha_col":  fecha_col,
-                    "num_bm":     len(evento.get("bookmakers", [])),
+                    "evento":    f"{home_team} vs {away_team}",
+                    "pick":      nombre,
+                    "es_local":  es_local,
+                    "cuota":     cuota,
+                    "prob_impl": round(prob_impl * 100, 1),
+                    "ev":        round(ev * 100, 2),
+                    "liga":      liga,
+                    "sport_key": sport_key,
+                    "deporte":   deporte,
+                    "hora_col":  hora_col,
+                    "fecha_col": fecha_col,
+                    "num_bm":    len(evento.get("bookmakers", [])),
+                    "home_team": home_team,
+                    "away_team": away_team,
                 }
 
         if mejor_pick and mejor_ev > 0:
@@ -280,64 +219,142 @@ def seleccionar_picks(eventos: list[dict]) -> list[dict]:
     # Ordenar por EV descendente
     candidatos.sort(key=lambda x: x["ev"], reverse=True)
 
-    # Aplicar límite por deporte
-    conteo_deporte: dict[str, int] = {}
-    picks_finales  = []
+    # Aplicar límite por deporte — sin excepciones, sin fallback relajado
+    conteo: dict[str, int] = {}
+    picks_finales: list[dict] = []
 
     for c in candidatos:
         dep = c["deporte"]
-        if conteo_deporte.get(dep, 0) >= PARLAY_MAX_POR_DEPORTE:
+        if conteo.get(dep, 0) >= PARLAY_MAX_POR_DEPORTE:
             continue
-        conteo_deporte[dep] = conteo_deporte.get(dep, 0) + 1
+        conteo[dep] = conteo.get(dep, 0) + 1
         picks_finales.append(c)
         if len(picks_finales) >= PARLAY_MAX_PICKS:
             break
 
-    # Si hay menos del mínimo, rellenar sin restricción de deporte
-    if len(picks_finales) < PARLAY_MIN_PICKS:
-        usados_ids = {p["evento"] for p in picks_finales}
-        for c in candidatos:
-            if c["evento"] not in usados_ids:
-                picks_finales.append(c)
-                usados_ids.add(c["evento"])
-            if len(picks_finales) >= PARLAY_MIN_PICKS:
-                break
-
-    return picks_finales[:PARLAY_MAX_PICKS]
+    local_count = sum(1 for p in picks_finales if p.get("es_local"))
+    logger.info(
+        f"🎰 Picks seleccionados: {len(picks_finales)} | "
+        f"Locales: {local_count} | "
+        f"Deportes: {dict(conteo)}"
+    )
+    return picks_finales
 
 
-# ─── ANÁLISIS GEMINI ──────────────────────────────────────────
-def _comentario_gemini_parlay(picks: list[dict], cuota_total: float) -> str:
-    """Pide a Gemini un comentario corto sobre el parlay."""
+# ─── GEMINI CON GOOGLE SEARCH ─────────────────────────────────
+def _contexto_gemini_picks(picks: list[dict]) -> dict[str, str]:
+    """
+    Usa Gemini 2.0 Flash con Google Search para buscar contexto
+    real de cada pick: bajas, forma reciente, playoff, ventaja local, etc.
+
+    Retorna dict: evento → texto de contexto (1 oración)
+    Si Gemini no está disponible retorna dict vacío.
+    """
+    import os
+    key = os.environ.get("GEMINI_API_KEY", "")
+    if not key:
+        return {}
+
+    # Un solo prompt con todos los partidos — eficiente en requests
+    partidos_txt = "\n".join(
+        f"- {p['pick']} ({p['evento']}, {p['liga']}, {p['fecha_col']})"
+        for p in picks
+    )
+
+    prompt = (
+        f"Busca información actual sobre estos partidos deportivos "
+        f"y para CADA UNO escribe UNA sola oración en español "
+        f"(máximo 15 palabras) explicando por qué el equipo indicado "
+        f"tiene ventaja: bajas del rival, forma reciente, ventaja de local, "
+        f"necesidad de puntos, playoff, etc. "
+        f"Sé específico y usa datos reales.\n\n"
+        f"Formato de respuesta — solo esto, sin markdown:\n"
+        f"EVENTO: razon\n\n"
+        f"Partidos:\n{partidos_txt}"
+    )
+
     try:
-        import os
-        key = os.environ.get("GEMINI_API_KEY", "")
-        if not key:
-            return ""
-
-        resumen = "\n".join(
-            f"- {p['pick']} ({p['evento']}, {p['liga']}) cuota:{p['cuota']} EV:{p['ev']}%"
-            for p in picks
-        )
-        prompt = (
-            f"Eres analista de apuestas. Este es un parlay de {len(picks)} picks "
-            f"con cuota combinada {cuota_total:.0f}x.\n\n{resumen}\n\n"
-            f"Escribe UN párrafo de máximo 3 oraciones en español, sin markdown, "
-            f"sin asteriscos. ¿Qué tan sólido se ve este boleto? "
-            f"Menciona el pick más confiable y el más arriesgado."
-        )
         r = SESION.post(
             "https://generativelanguage.googleapis.com/v1beta/models/"
             "gemini-2.0-flash:generateContent",
             params={"key": key},
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": 150, "temperature": 0.4},
+                "tools": [{"google_search": {}}],
+                "generationConfig": {
+                    "maxOutputTokens": 600,
+                    "temperature": 0.3,
+                },
             },
-            timeout=20,
+            timeout=30,
+        )
+        if not r.ok:
+            logger.warning(f"⚠️ Gemini search {r.status_code}: {r.text[:100]}")
+            return {}
+
+        texto = (
+            r.json()
+            .get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "")
+            .strip()
+        )
+
+        # Parsear "EVENTO: razon" línea por línea
+        contextos: dict[str, str] = {}
+        for linea in texto.splitlines():
+            if ":" in linea:
+                partes = linea.split(":", 1)
+                evento_key = partes[0].strip()
+                razon      = partes[1].strip()
+                # Buscar el pick que más se aproxima al evento_key
+                for p in picks:
+                    if (p["pick"].lower() in evento_key.lower()
+                            or any(
+                                word in evento_key.lower()
+                                for word in p["pick"].lower().split()
+                                if len(word) > 3
+                            )):
+                        contextos[p["evento"]] = razon
+                        break
+        return contextos
+
+    except Exception as e:
+        logger.warning(f"⚠️ Gemini search parlay: {e}")
+        return {}
+
+
+def _resumen_gemini_parlay(picks: list[dict], cuota_total: float) -> str:
+    """Resumen general del parlay (sin search — rápido)."""
+    import os
+    key = os.environ.get("GEMINI_API_KEY", "")
+    if not key:
+        return ""
+
+    locales = sum(1 for p in picks if p.get("es_local"))
+    deportes_usados = list({p["deporte"] for p in picks})
+
+    prompt = (
+        f"Parlay de {len(picks)} picks, cuota combinada x{cuota_total:,.0f}. "
+        f"{locales} de {len(picks)} son equipos locales. "
+        f"Deportes: {', '.join(deportes_usados)}. "
+        f"Escribe 2 oraciones en español sin markdown. "
+        f"¿Qué tan equilibrado está el boleto y cuál es la fortaleza principal?"
+    )
+    try:
+        r = SESION.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.0-flash:generateContent",
+            params={"key": key},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"maxOutputTokens": 100, "temperature": 0.4},
+            },
+            timeout=15,
         )
         if r.ok:
-            texto = (
+            return (
                 r.json()
                 .get("candidates", [{}])[0]
                 .get("content", {})
@@ -345,68 +362,68 @@ def _comentario_gemini_parlay(picks: list[dict], cuota_total: float) -> str:
                 .get("text", "")
                 .strip()
             )
-            return f"\n🤖 <i>{safe_html(texto)}</i>" if texto else ""
     except Exception as e:
-        logger.warning(f"⚠️ Gemini parlay: {e}")
+        logger.warning(f"⚠️ Gemini resumen: {e}")
     return ""
 
 
-# ─── FORMATEAR ALERTA PARLAY ──────────────────────────────────
+# ─── FORMATEAR ALERTA ─────────────────────────────────────────
 def formatear_alerta_parlay(
     picks: list[dict],
     cuota_total: float,
     ganancia_pot: int,
-    gemini_txt: str,
+    contextos: dict[str, str],
+    resumen: str,
     fecha: str,
 ) -> str:
-    """Formatea el mensaje completo del parlay para Telegram."""
-    emoji_dep = {
-        "soccer":           "⚽",
-        "tennis":           "🎾",
-        "basketball":       "🏀",
-        "baseball":         "⚾",
-        "icehockey":        "🏒",
-        "rugbyleague":      "🏉",
-        "americanfootball": "🏈",
-        "cricket":          "🏏",
-        "otro":             "🎮",
-    }
+    lineas = []
+    local_tag  = "🏠"
+    visita_tag = "✈️"
 
-    lineas_picks = []
     for i, p in enumerate(picks, 1):
-        em = emoji_dep.get(p["deporte"], "🎮")
-        lineas_picks.append(
-            f"  {i:02d}. {em} <b>{safe_html(p['pick'])}</b> @ {p['cuota']}\n"
+        em    = DEPORTE_EMOJI.get(p["deporte"], "🎮")
+        loc   = local_tag if p.get("es_local") else visita_tag
+        ctx   = contextos.get(p["evento"], "")
+        ctx_l = f"\n      💬 <i>{safe_html(ctx)}</i>" if ctx else ""
+
+        lineas.append(
+            f"  {i:02d}. {em}{loc} <b>{safe_html(p['pick'])}</b> @ {p['cuota']}\n"
             f"      {safe_html(p['evento'])}\n"
             f"      {safe_html(p['liga'])} | {p['hora_col']} Col "
-            f"| EV +{p['ev']}% | {p['prob_impl']}% impl."
+            f"| EV +{p['ev']}%{ctx_l}"
         )
 
-    picks_txt = "\n".join(lineas_picks)
+    picks_txt = "\n".join(lineas)
+    locales   = sum(1 for p in picks if p.get("es_local"))
+    deportes  = len({p["deporte"] for p in picks})
+
+    resumen_txt = f"\n🤖 <i>{safe_html(resumen)}</i>\n" if resumen else ""
 
     return (
         f"🎰 <b>PARLAY SEMANAL — {safe_html(fecha)}</b>\n\n"
-        f"📋 <b>{len(picks)} picks seleccionados</b>\n\n"
+        f"📋 <b>{len(picks)} picks</b> | "
+        f"🏠 {locales} locales | "
+        f"🎮 {deportes} deportes\n\n"
         f"{picks_txt}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"🔢 Cuota combinada: <b>x{cuota_total:,.0f}</b>\n"
         f"💵 Apuesta: <b>${PARLAY_STAKE:,} COP</b>\n"
         f"🏆 Si ganas: <b>+${ganancia_pot:,} COP</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{gemini_txt}\n\n"
-        f"⚠️ <i>Este es tu boleto de lotería semanal. "
-        f"La probabilidad real es baja — es por diversión.</i>"
+        f"{resumen_txt}\n"
+        f"🏠 = local  ✈️ = visitante\n"
+        f"⚠️ <i>Boleto de lotería semanal — por diversión.</i>"
     )
 
 
 # ─── GUARDAR EN HISTORIAL ─────────────────────────────────────
-def registrar_parlay(historial: dict, picks: list[dict],
-                     cuota_total: float, ganancia_pot: int,
-                     fecha: str) -> str:
-    """
-    Guarda el parlay en historial['parlays'].
-    Retorna el ID del parlay registrado.
-    """
+def registrar_parlay(
+    historial: dict,
+    picks: list[dict],
+    cuota_total: float,
+    ganancia_pot: int,
+    fecha: str,
+) -> str:
     import hashlib
     historial.setdefault("parlays", [])
 
@@ -414,10 +431,8 @@ def registrar_parlay(historial: dict, picks: list[dict],
         f"{fecha}{''.join(p['evento'] for p in picks[:3])}".encode()
     ).hexdigest()[:12]
 
-    # Evitar duplicados
-    existentes = {p.get("id") for p in historial["parlays"]}
-    if parlay_id in existentes:
-        logger.info(f"↩️ Parlay duplicado omitido: {parlay_id}")
+    if parlay_id in {p.get("id") for p in historial["parlays"]}:
+        logger.info(f"↩️ Parlay duplicado: {parlay_id}")
         return parlay_id
 
     historial["parlays"].append({
@@ -427,74 +442,65 @@ def registrar_parlay(historial: dict, picks: list[dict],
         "cuota_total":  cuota_total,
         "stake":        PARLAY_STAKE,
         "ganancia_pot": ganancia_pot,
-        "estado":       "pendiente",   # → "ganado" / "perdido" (manual)
+        "estado":       "pendiente",
         "ganancia_real": 0,
     })
     logger.info(
-        f"🎰 Parlay registrado: {len(picks)} picks | "
-        f"cuota x{cuota_total:.0f} | pot. ${ganancia_pot:,}"
+        f"🎰 Parlay registrado: {parlay_id} | "
+        f"{len(picks)} picks | x{cuota_total:.0f} | "
+        f"pot. ${ganancia_pot:,}"
     )
     return parlay_id
 
 
-# ─── FUNCIÓN PRINCIPAL ────────────────────────────────────────
+# ─── PUNTO DE ENTRADA ─────────────────────────────────────────
 def correr_parlay(historial: dict) -> bool:
-    """
-    Punto de entrada desde main.py.
-    Solo corre sábado y domingo.
-    Retorna True si se envió el parlay.
-    """
+    """Corre solo sábado y domingo. Retorna True si envió el parlay."""
     from telegram_bot import enviar_telegram
     from historial    import guardar_historial
 
-    # Solo sábado (5) y domingo (6)
-    dia_semana = hora_colombia().weekday()
-    if dia_semana not in (5, 6):
-        logger.info("🎰 Parlay: hoy no es sábado ni domingo — omitiendo")
+    dia = hora_colombia().weekday()
+    if dia not in (5, 6):
+        logger.info("🎰 Parlay: no es sábado ni domingo")
+        return False
+
+    fecha = hora_colombia().strftime("%Y-%m-%d")
+
+    # Evitar duplicado del mismo día
+    if any(p.get("fecha") == fecha for p in historial.get("parlays", [])):
+        logger.info(f"🎰 Parlay del {fecha} ya enviado hoy")
         return False
 
     logger.info("🎰 Iniciando parlay semanal...")
 
-    # 1. Obtener deportes activos
-    sports_activos = get_sports_disponibles()
-
-    # 2. Obtener odds
-    eventos = get_odds_parlay(sports_activos)
+    sports   = get_sports_disponibles()
+    eventos  = get_odds_parlay(sports)
     if not eventos:
-        logger.warning("⚠️ Parlay: sin eventos disponibles")
+        logger.warning("⚠️ Parlay: sin eventos")
         return False
-    logger.info(f"🎰 {len(eventos)} eventos candidatos para el parlay")
 
-    # 3. Seleccionar picks
     picks = seleccionar_picks(eventos)
-    if len(picks) < PARLAY_MIN_PICKS:
-        logger.warning(
-            f"⚠️ Parlay: solo {len(picks)} picks disponibles "
-            f"(mínimo {PARLAY_MIN_PICKS})"
-        )
-        if len(picks) < 5:
-            return False   # muy pocos — no tiene sentido
+    if len(picks) < 5:
+        logger.warning(f"⚠️ Parlay: solo {len(picks)} picks válidos")
+        return False
 
-    # 4. Calcular cuota combinada
-    cuota_total  = round(
-        __import__("math").prod(p["cuota"] for p in picks), 2
-    )
+    cuota_total  = round(math.prod(p["cuota"] for p in picks), 2)
     ganancia_pot = round(PARLAY_STAKE * cuota_total) - PARLAY_STAKE
 
-    # 5. Análisis Gemini
-    gemini_txt = _comentario_gemini_parlay(picks, cuota_total)
+    # Gemini: contexto por pick (con Google Search) + resumen
+    logger.info("🤖 Consultando Gemini con Google Search...")
+    contextos = _contexto_gemini_picks(picks)
+    resumen   = _resumen_gemini_parlay(picks, cuota_total)
 
-    # 6. Formatear y enviar
-    fecha = hora_colombia().strftime("%Y-%m-%d")
-    msg   = formatear_alerta_parlay(picks, cuota_total, ganancia_pot, gemini_txt, fecha)
+    msg = formatear_alerta_parlay(
+        picks, cuota_total, ganancia_pot, contextos, resumen, fecha
+    )
 
     if not enviar_telegram(msg):
-        logger.error("❌ Parlay: fallo al enviar Telegram")
+        logger.error("❌ Parlay: fallo Telegram")
         return False
 
-    # 7. Registrar en historial
     registrar_parlay(historial, picks, cuota_total, ganancia_pot, fecha)
     guardar_historial(historial)
-
-    logger.info(f"✅ Parlay enviado: x{cuota_total:.0f} | pot. ${ganancia_pot:,}")
+    logger.info(f"✅ Parlay enviado: x{cuota_total:.0f} | ${ganancia_pot:,}")
     return True
