@@ -1450,5 +1450,148 @@
     "9d106d93e0dfb5de",
     "26fea06194edb51d",
     "eb1a3a3fcb720e5d"
+  ],
+  "parlays": [
+    {
+      "id": "1b564a21a934",
+      "fecha": "2026-05-02",
+      "picks": [
+        {
+          "evento": "San Diego Padres vs Chicago White Sox",
+          "pick": "Chicago White Sox",
+          "cuota": 2.64,
+          "prob_impl": 36.4,
+          "ev": 0.86,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "19:41",
+          "fecha_col": "2026-05-02",
+          "num_bm": 21
+        },
+        {
+          "evento": "Washington Nationals vs Milwaukee Brewers",
+          "pick": "Milwaukee Brewers",
+          "cuota": 1.76,
+          "prob_impl": 54.5,
+          "ev": 0.76,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "15:06",
+          "fecha_col": "2026-05-02",
+          "num_bm": 22
+        },
+        {
+          "evento": "Boston Red Sox vs Houston Astros",
+          "pick": "Boston Red Sox",
+          "cuota": 1.81,
+          "prob_impl": 53.0,
+          "ev": 0.7,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "15:11",
+          "fecha_col": "2026-05-02",
+          "num_bm": 22
+        },
+        {
+          "evento": "New York Yankees vs Baltimore Orioles",
+          "pick": "Baltimore Orioles",
+          "cuota": 2.35,
+          "prob_impl": 40.8,
+          "ev": 0.69,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "12:36",
+          "fecha_col": "2026-05-02",
+          "num_bm": 22
+        },
+        {
+          "evento": "DC Defenders vs Dallas Renegades",
+          "pick": "Dallas Renegades",
+          "cuota": 2.62,
+          "prob_impl": 36.6,
+          "ev": 0.58,
+          "liga": "UFL",
+          "sport_key": "americanfootball_ufl",
+          "deporte": "americanfootball",
+          "hora_col": "11:00",
+          "fecha_col": "2026-05-02",
+          "num_bm": 5
+        },
+        {
+          "evento": "Detroit Tigers vs Texas Rangers",
+          "pick": "Detroit Tigers",
+          "cuota": 1.75,
+          "prob_impl": 54.8,
+          "ev": 0.66,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "18:16",
+          "fecha_col": "2026-05-02",
+          "num_bm": 22
+        },
+        {
+          "evento": "Los Angeles Angels vs New York Mets",
+          "pick": "New York Mets",
+          "cuota": 1.8,
+          "prob_impl": 53.2,
+          "ev": 0.64,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "20:39",
+          "fecha_col": "2026-05-02",
+          "num_bm": 22
+        },
+        {
+          "evento": "Minnesota Twins vs Toronto Blue Jays",
+          "pick": "Minnesota Twins",
+          "cuota": 2.09,
+          "prob_impl": 45.9,
+          "ev": 0.63,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "13:11",
+          "fecha_col": "2026-05-02",
+          "num_bm": 22
+        },
+        {
+          "evento": "Athletics vs Cleveland Guardians",
+          "pick": "Athletics",
+          "cuota": 1.74,
+          "prob_impl": 55.0,
+          "ev": 0.56,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "15:06",
+          "fecha_col": "2026-05-02",
+          "num_bm": 22
+        },
+        {
+          "evento": "Chicago Cubs vs Arizona Diamondbacks",
+          "pick": "Arizona Diamondbacks",
+          "cuota": 2.38,
+          "prob_impl": 40.2,
+          "ev": 0.46,
+          "liga": "MLB",
+          "sport_key": "baseball_mlb",
+          "deporte": "baseball",
+          "hora_col": "13:21",
+          "fecha_col": "2026-05-02",
+          "num_bm": 21
+        }
+      ],
+      "cuota_total": 1411.72,
+      "stake": 2000,
+      "ganancia_pot": 2821440,
+      "estado": "pendiente",
+      "ganancia_real": 0
+    }
   ]
 }
