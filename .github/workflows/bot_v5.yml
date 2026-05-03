@@ -83,6 +83,7 @@ jobs:
           GITHUB_REPOSITORY:           ${{ github.repository }}
           # Forzar parlay si se activó manualmente con force_parlay=true
           PARLAY_FORCE:                ${{ github.event.inputs.force_parlay }}
+          PARLAY_RANDOM:               ${{ github.event.inputs.parlay_random }}
         run: python main.py
 
       - name: 📤 Guardar historial en artifact
