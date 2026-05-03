@@ -455,21 +455,43 @@ def registrar_parlay(
 
 # ─── PUNTO DE ENTRADA ─────────────────────────────────────────
 def correr_parlay(historial: dict) -> bool:
-    """Corre solo sábado y domingo. Retorna True si envió el parlay."""
+    """
+    Corre el parlay semanal.
+
+    CUÁNDO CORRE:
+    - Sábado o domingo entre 9am y 2pm Colombia
+    - O en cualquier momento si PARLAY_FORCE=true (pruebas manuales)
+
+    Retorna True si envió el parlay correctamente.
+    """
+    import os
     from telegram_bot import enviar_telegram
     from historial    import guardar_historial
 
-    dia = hora_colombia().weekday()
-    if dia not in (5, 6):
-        logger.info("🎰 Parlay: no es sábado ni domingo")
-        return False
+    forzar = os.environ.get("PARLAY_FORCE", "").lower() == "true"
+    ahora  = hora_colombia()
+    dia    = ahora.weekday()
+    hora   = ahora.hour
 
-    fecha = hora_colombia().strftime("%Y-%m-%d")
+    if not forzar:
+        if dia not in (5, 6):
+            logger.info("🎰 Parlay: no es sábado ni domingo")
+            return False
+        if not (9 <= hora < 14):
+            logger.info(
+                f"🎰 Parlay: fuera del horario óptimo "
+                f"(son las {hora}h Col, ventana: 9-14h)"
+            )
+            return False
 
-    # Evitar duplicado del mismo día
-    if any(p.get("fecha") == fecha for p in historial.get("parlays", [])):
-        logger.info(f"🎰 Parlay del {fecha} ya enviado hoy")
-        return False
+    fecha = ahora.strftime("%Y-%m-%d")
+
+    if not forzar:
+        if any(p.get("fecha") == fecha for p in historial.get("parlays", [])):
+            logger.info(f"🎰 Parlay del {fecha} ya enviado hoy")
+            return False
+    else:
+        logger.info("🎰 Parlay: modo FORZADO — sin restricciones de día/hora/duplicado")
 
     logger.info("🎰 Iniciando parlay semanal...")
 
