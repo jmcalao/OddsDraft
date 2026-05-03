@@ -20,6 +20,11 @@ on:
         description: 'Forzar parlay ahora (true/false)'
         required: false
         default: 'false'
+      parlay_random:
+        description: 'Picks aleatorios para probar pipeline (true/false)'
+        required: false
+        default: 'false' 
+
 
 permissions:
   actions: read
