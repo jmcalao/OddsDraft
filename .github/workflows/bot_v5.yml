@@ -10,7 +10,16 @@ on:
     - cron: '0 0 * * *'    #  7:00pm Col — Sudamérica noche
     - cron: '0 3 * * *'    # 10:00pm Col — Asia/Oceanía ← CIERRE
     - cron: '0 6 * * *'    #  1:00am Col — Asia madrugada
+    # ── Parlay dedicado: sábado y domingo 10am Colombia (15:00 UTC) ──
+    - cron: '0 15 * * 6'   # Sábado  10:00am Col
+    - cron: '0 15 * * 0'   # Domingo 10:00am Col
+
   workflow_dispatch:
+    inputs:
+      force_parlay:
+        description: 'Forzar parlay ahora (true/false)'
+        required: false
+        default: 'false'
 
 permissions:
   actions: read
@@ -39,25 +48,20 @@ jobs:
       - name: 📦 Instalar dependencias
         run: pip install -r requirements.txt
 
-      # ── PASO CLAVE: descargar historial ANTES de correr el bot ──
-      # if_no_artifact_found: warn  →  si no existe, sigue sin error
-      # El artifact SIEMPRE se llama "bot-historial" para acumular
       - name: 📥 Descargar historial anterior
         uses: dawidd6/action-download-artifact@v6
         with:
           name: bot-historial
           path: ./bot_data/
           if_no_artifact_found: warn
-          # Sin "workflow" ni "run_id" → siempre baja el más reciente
-          # del mismo repo, sin importar de qué run venga
 
       - name: 📋 Verificar historial descargado
         run: |
           if [ -f "./bot_data/historial.json" ]; then
             ALERTAS=$(python3 -c "import json; d=json.load(open('./bot_data/historial.json')); print(len(d.get('alertas',[])))")
-            echo "✅ Historial descargado: $ALERTAS alertas"
+            echo "✅ Historial: $ALERTAS alertas"
           else
-            echo "⚠️ Sin historial previo — arrancando desde cero"
+            echo "⚠️ Sin historial previo"
           fi
 
       - name: 🤖 Ejecutar SuperBot v5.0
@@ -74,14 +78,13 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID:             ${{ secrets.GOOGLE_SHEET_ID }}
           ANTHROPIC_API_KEY:           ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:              ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN:                ${{ secrets.GITHUB_TOKEN }}
-          GEMINI_API_KEY:               ${{ secrets.GEMINI_API_KEY }}
           GITHUB_REPOSITORY:           ${{ github.repository }}
+          # Forzar parlay si se activó manualmente con force_parlay=true
+          PARLAY_FORCE:                ${{ github.event.inputs.force_parlay }}
         run: python main.py
 
-      # ── Guardar historial SIEMPRE, incluso si el bot falló ──────
-      # overwrite: true  →  reemplaza el artifact anterior
-      # Esto garantiza que el próximo run baje el historial actualizado
       - name: 📤 Guardar historial en artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -91,8 +94,6 @@ jobs:
           retention-days: 90
           overwrite: true
 
-      # ── Backup adicional en el repo (solo si el bot corrió bien) ─
-      # Doble protección: artifact + archivo en repo
       - name: 💾 Backup historial en repo
         if: success()
         run: |
@@ -101,7 +102,6 @@ jobs:
             git config user.email "superbot@github-actions"
             git config user.name "SuperBot Actions"
             git add historial_backup.json
-            # Solo commitear si hay cambios reales
             git diff --staged --quiet || git commit -m "backup: historial $(date -u '+%Y-%m-%d %H:%M') UTC"
-            git push || echo "⚠️ Push falló — artifact sigue siendo el backup principal"
+            git push || echo "⚠️ Push falló — artifact sigue siendo backup principal"
           fi
