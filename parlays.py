@@ -129,101 +129,126 @@ def get_odds_parlay(sport_keys: list[str]) -> list[dict]:
 
 
 # ─── SELECCIONAR PICKS ────────────────────────────────────────
-def seleccionar_picks(eventos: list[dict]) -> list[dict]:
+def _extraer_candidato(evento: dict) -> dict | None:
     """
-    Selecciona top picks con EV positivo.
-    REGLAS:
-    - Cuota pick en [PARLAY_MIN_CUOTA, PARLAY_MAX_CUOTA]
-    - Preferencia por equipo LOCAL (bonus +2% EV)
-    - Máximo PARLAY_MAX_POR_DEPORTE por deporte — SIEMPRE, incluso en fallback
-    - Máximo 1 pick por evento
-    - Ordenados por EV desc → top PARLAY_MAX_PICKS
+    Extrae el mejor outcome de un evento (el favorito local si existe,
+    o el de mayor probabilidad). Retorna None si no hay cuotas.
     """
-    candidatos = []
-    ahora = datetime.now(timezone.utc)
+    sport_key = evento.get("_sport_key", "")
+    home_team = evento.get("home_team", "")
+    away_team = evento.get("away_team", "")
+    ct        = evento.get("commence_time", "")
+    liga      = evento.get("sport_title", sport_key)
+    deporte   = _prefijo_deporte(sport_key)
 
-    for evento in eventos:
-        sport_key = evento.get("_sport_key", "")
-        home_team = evento.get("home_team", "")
-        away_team = evento.get("away_team", "")
-        ct        = evento.get("commence_time", "")
-        liga      = evento.get("sport_title", sport_key)
-        deporte   = _prefijo_deporte(sport_key)
-
-        # Extraer cuotas promedio por outcome
-        cuotas_map: dict[str, list[float]] = {}
-        for bm in evento.get("bookmakers", []):
-            for mkt in bm.get("markets", []):
-                if mkt["key"] != "h2h":
-                    continue
-                for out in mkt["outcomes"]:
-                    cuotas_map.setdefault(out["name"], []).append(float(out["price"]))
-
-        if not cuotas_map:
-            continue
-
-        avg_cuotas = {
-            name: round(sum(v)/len(v), 2)
-            for name, v in cuotas_map.items()
-        }
-
-        suma_impl = sum(1.0/c for c in avg_cuotas.values() if c > 0)
-
-        try:
-            utc      = datetime.fromisoformat(ct.replace("Z", "+00:00"))
-            hora_col = (utc - timedelta(hours=5)).strftime("%H:%M")
-            fecha_col = (utc - timedelta(hours=5)).strftime("%Y-%m-%d")
-        except Exception:
-            hora_col = "??:??"
-            fecha_col = hora_colombia().strftime("%Y-%m-%d")
-
-        # Evaluar cada outcome — con bonus para el local
-        mejor_pick = None
-        mejor_ev   = -99.0
-
-        for nombre, cuota in avg_cuotas.items():
-            if not (PARLAY_MIN_CUOTA <= cuota <= PARLAY_MAX_CUOTA):
+    # Extraer cuotas promedio por outcome
+    cuotas_map: dict[str, list[float]] = {}
+    for bm in evento.get("bookmakers", []):
+        for mkt in bm.get("markets", []):
+            if mkt["key"] != "h2h":
                 continue
+            for out in mkt["outcomes"]:
+                cuotas_map.setdefault(out["name"], []).append(float(out["price"]))
 
-            prob_impl = (1.0/cuota) / suma_impl if suma_impl > 0 else 0
-            prob_real = prob_impl * 1.10
+    if not cuotas_map:
+        return None
 
-            # Bonus local
-            es_local = (nombre == home_team)
-            ev = prob_real * cuota - 1.0
-            if es_local:
-                ev += LOCAL_EV_BONUS
+    avg_cuotas = {
+        name: round(sum(v)/len(v), 2)
+        for name, v in cuotas_map.items()
+    }
 
-            if ev > mejor_ev:
-                mejor_ev   = ev
-                mejor_pick = {
-                    "evento":    f"{home_team} vs {away_team}",
-                    "pick":      nombre,
-                    "es_local":  es_local,
-                    "cuota":     cuota,
-                    "prob_impl": round(prob_impl * 100, 1),
-                    "ev":        round(ev * 100, 2),
-                    "liga":      liga,
-                    "sport_key": sport_key,
-                    "deporte":   deporte,
-                    "hora_col":  hora_col,
-                    "fecha_col": fecha_col,
-                    "num_bm":    len(evento.get("bookmakers", [])),
-                    "home_team": home_team,
-                    "away_team": away_team,
-                }
+    try:
+        utc       = datetime.fromisoformat(ct.replace("Z", "+00:00"))
+        hora_col  = (utc - timedelta(hours=5)).strftime("%H:%M")
+        fecha_col = (utc - timedelta(hours=5)).strftime("%Y-%m-%d")
+    except Exception:
+        hora_col  = "??:??"
+        fecha_col = hora_colombia().strftime("%Y-%m-%d")
 
-        if mejor_pick and mejor_ev > -0.01:
-            candidatos.append(mejor_pick)
+    # Elegir el outcome con menor cuota (más probable)
+    mejor_nombre = min(avg_cuotas, key=lambda x: avg_cuotas[x])
+    cuota        = avg_cuotas[mejor_nombre]
+    es_local     = (mejor_nombre == home_team)
+
+    # EV estimado (informativo — no filtra)
+    suma_impl = sum(1.0/c for c in avg_cuotas.values() if c > 0)
+    prob_impl = (1.0/cuota) / suma_impl if suma_impl > 0 else 0
+    prob_real = prob_impl * 1.10
+    ev        = round((prob_real * cuota - 1.0) * 100, 2)
+
+    return {
+        "evento":    f"{home_team} vs {away_team}",
+        "pick":      mejor_nombre,
+        "es_local":  es_local,
+        "cuota":     cuota,
+        "prob_impl": round(prob_impl * 100, 1),
+        "ev":        ev,
+        "liga":      liga,
+        "sport_key": sport_key,
+        "deporte":   deporte,
+        "hora_col":  hora_col,
+        "fecha_col": fecha_col,
+        "num_bm":    len(evento.get("bookmakers", [])),
+        "home_team": home_team,
+        "away_team": away_team,
+    }
+
+
+def seleccionar_picks(
+    eventos: list[dict],
+    modo_random: bool = False,
+) -> list[dict]:
+    """
+    Selecciona picks para el parlay.
+
+    MODO NORMAL (modo_random=False):
+    - Extrae el favorito de cada evento
+    - Filtra cuota en [PARLAY_MIN_CUOTA, PARLAY_MAX_CUOTA]
+    - Máx PARLAY_MAX_POR_DEPORTE del mismo deporte
+    - Ordena por EV desc → top PARLAY_MAX_PICKS
+
+    MODO RANDOM (modo_random=True, PARLAY_RANDOM=true env var):
+    - Toma hasta PARLAY_MAX_PICKS eventos aleatorios
+    - Sin filtro de cuota ni EV — solo necesita tener cuotas
+    - Útil para probar que el pipeline funciona
+    """
+    import random as rnd
+
+    # Extraer candidato de cada evento
+    candidatos = []
+    for ev in eventos:
+        c = _extraer_candidato(ev)
+        if c:
+            candidatos.append(c)
+
+    if not candidatos:
+        return []
+
+    if modo_random:
+        # Mezclar y tomar los primeros PARLAY_MAX_PICKS
+        rnd.shuffle(candidatos)
+        picks = candidatos[:PARLAY_MAX_PICKS]
+        logger.info(
+            f"🎲 Modo random: {len(picks)} picks de {len(candidatos)} candidatos"
+        )
+        return picks
+
+    # ── Modo normal ───────────────────────────────────────────
+    # Filtrar por rango de cuota
+    filtrados = [
+        c for c in candidatos
+        if PARLAY_MIN_CUOTA <= c["cuota"] <= PARLAY_MAX_CUOTA
+    ]
 
     # Ordenar por EV descendente
-    candidatos.sort(key=lambda x: x["ev"], reverse=True)
+    filtrados.sort(key=lambda x: x["ev"], reverse=True)
 
-    # Aplicar límite por deporte — sin excepciones, sin fallback relajado
+    # Aplicar límite por deporte
     conteo: dict[str, int] = {}
     picks_finales: list[dict] = []
 
-    for c in candidatos:
+    for c in filtrados:
         dep = c["deporte"]
         if conteo.get(dep, 0) >= PARLAY_MAX_POR_DEPORTE:
             continue
@@ -239,6 +264,7 @@ def seleccionar_picks(eventos: list[dict]) -> list[dict]:
         f"Deportes: {dict(conteo)}"
     )
     return picks_finales
+
 
 
 # ─── GEMINI CON GOOGLE SEARCH ─────────────────────────────────
@@ -493,17 +519,22 @@ def correr_parlay(historial: dict) -> bool:
     else:
         logger.info("🎰 Parlay: modo FORZADO — sin restricciones de día/hora/duplicado")
 
+    modo_random = os.environ.get("PARLAY_RANDOM", "").lower() == "true"
+    if modo_random:
+        logger.info("🎲 Parlay: MODO RANDOM activado (prueba de pipeline)")
+
     logger.info("🎰 Iniciando parlay semanal...")
 
-    sports   = get_sports_disponibles()
-    eventos  = get_odds_parlay(sports)
+    sports  = get_sports_disponibles()
+    eventos = get_odds_parlay(sports)
     if not eventos:
         logger.warning("⚠️ Parlay: sin eventos")
         return False
 
-    picks = seleccionar_picks(eventos)
-    if len(picks) < 5:
-        logger.warning(f"⚠️ Parlay: solo {len(picks)} picks válidos")
+    picks = seleccionar_picks(eventos, modo_random=modo_random)
+    min_picks = 3 if modo_random else 5
+    if len(picks) < min_picks:
+        logger.warning(f"⚠️ Parlay: solo {len(picks)} picks ({min_picks} mínimo)")
         return False
 
     cuota_total  = round(math.prod(p["cuota"] for p in picks), 2)
