@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 PARLAY_STAKE           = 2_000
 PARLAY_MIN_PICKS       = 10
 PARLAY_MAX_PICKS       = 14
-PARLAY_MIN_CUOTA       = 1.65
-PARLAY_MAX_CUOTA       = 2.90
+PARLAY_MIN_CUOTA       = 1.50
+PARLAY_MAX_CUOTA       = 3.20
 PARLAY_MAX_POR_DEPORTE = 4      # máximo picks del mismo deporte — SIEMPRE se respeta
 LOCAL_EV_BONUS         = 0.02   # bonus EV para equipos locales
 
@@ -186,7 +186,7 @@ def seleccionar_picks(eventos: list[dict]) -> list[dict]:
                 continue
 
             prob_impl = (1.0/cuota) / suma_impl if suma_impl > 0 else 0
-            prob_real = prob_impl * 1.05
+            prob_real = prob_impl * 1.10
 
             # Bonus local
             es_local = (nombre == home_team)
@@ -213,7 +213,7 @@ def seleccionar_picks(eventos: list[dict]) -> list[dict]:
                     "away_team": away_team,
                 }
 
-        if mejor_pick and mejor_ev > 0:
+        if mejor_pick and mejor_ev > -0.01:
             candidatos.append(mejor_pick)
 
     # Ordenar por EV descendente
