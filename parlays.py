@@ -257,6 +257,19 @@ def seleccionar_picks(
         if len(picks_finales) >= PARLAY_MAX_PICKS:
             break
 
+    # ── Fallback: si hay menos del mínimo, ignorar límite por deporte ──
+    # Pasa cuando solo hay un deporte disponible (ej: domingo solo fútbol)
+    if len(picks_finales) < PARLAY_MIN_PICKS:
+        logger.info(
+            f"⚠️ Solo {len(picks_finales)} picks con límite de deporte — "
+            f"usando todos los disponibles por EV"
+        )
+        picks_finales = filtrados[:PARLAY_MAX_PICKS]
+        conteo = {}
+        for p in picks_finales:
+            dep = p["deporte"]
+            conteo[dep] = conteo.get(dep, 0) + 1
+
     local_count = sum(1 for p in picks_finales if p.get("es_local"))
     logger.info(
         f"🎰 Picks seleccionados: {len(picks_finales)} | "
