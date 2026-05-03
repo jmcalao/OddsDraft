@@ -85,10 +85,32 @@ def get_odds_parlay(sport_keys: list[str]) -> list[dict]:
 
     priority = ["soccer", "basketball", "icehockey", "americanfootball",
                 "baseball", "tennis", "rugbyleague"]
-    sports_sorted = sorted(
-        [s for s in sport_keys if any(s.startswith(p) for p in priority)],
-        key=lambda x: next((i for i, p in enumerate(priority) if x.startswith(p)), 99)
-    )[:14]
+
+    # Siempre incluir NBA, MLB y NHL si están disponibles — son los más ricos
+    SIEMPRE_INCLUIR = ["basketball_nba", "baseball_mlb", "icehockey_nhl",
+                       "americanfootball_nfl"]
+    fijos   = [s for s in sport_keys if s in SIEMPRE_INCLUIR]
+
+    # Fútbol: máximo 6 ligas (las más activas) para no acaparar todos los slots
+    soccer_keys = sorted(
+        [s for s in sport_keys if s.startswith("soccer")],
+        key=lambda x: next((i for i, k in enumerate([
+            "soccer_epl", "soccer_spain_la_liga", "soccer_germany_bundesliga",
+            "soccer_italy_serie_a", "soccer_brazil_campeonato",
+            "soccer_france_ligue_one",
+        ]) if k == x), 99)
+    )[:6]
+
+    # Resto de deportes (tenis, rugby, etc.) — máximo 4
+    otros_keys = [
+        s for s in sport_keys
+        if not s.startswith("soccer")
+        and s not in SIEMPRE_INCLUIR
+        and any(s.startswith(p) for p in priority)
+    ][:4]
+
+    sports_sorted = list(dict.fromkeys(fijos + soccer_keys + otros_keys))
+    # dict.fromkeys elimina duplicados manteniendo orden
 
     last_r = None
     for sport_key in sports_sorted:
