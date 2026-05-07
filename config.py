@@ -86,7 +86,7 @@ APUESTA_FIJA = calcular_stake_martingala(1)
 
 # ─── URLs BASE ────────────────────────────────────────────────
 ODDS_BASE     = "https://api.the-odds-api.com/v4"
-RAPIDAPI_BASE = "https://api-football-v1.p.rapidapi.com/v3"
+RAPIDAPI_BASE = "v3.football.api-sports.io"
 
 RAPIDAPI_MAX_H2H_POR_RUN = 11
 MAX_TELEGRAM_LEN         = 3900
