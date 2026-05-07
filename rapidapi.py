@@ -16,7 +16,7 @@ import requests
 import os
 
 
-url = "v3.football.api-sports.io"
+url = "https://v3.football.api-sports.io"
 
 querystring = {"search": "m"}
 
