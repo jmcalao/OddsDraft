@@ -16,13 +16,13 @@ import requests
 import os
 
 
-url = "https://free-api-live-football-data.p.rapidapi.com/football-players-search"
+url = "v3.football.api-sports.io"
 
 querystring = {"search": "m"}
 
 headers = {
     "x-rapidapi-key": os.environ["RAPIDAPI_KEY"],
-    "x-rapidapi-host": "free-api-live-football-data.p.rapidapi.com"
+    "x-rapidapi-host": "v3.football.api-sports.io"
 }
 
 response = requests.get(url, headers=headers, params=querystring)
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 _RAPIDAPI_HEADERS = {
     "X-RapidAPI-Key":  RAPIDAPI_KEY,
-    "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com",
+    "X-RapidAPI-Host": "v3.football.api-sports.io",
 }
 
 
