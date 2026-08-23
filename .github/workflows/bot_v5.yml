@@ -2,7 +2,7 @@ name: SuperBot v5.0
 
 on:
   schedule:
-    - cron: '30 5 * * *'   #  7:00am Col — Europa mañana
+    - cron: '0 12 * * *'   #  7:00am Col — Europa mañana
     - cron: '30 14 * * *'  #  9:30am Col — Europa media mañana
     - cron: '30 16 * * *'  # 11:30am Col — Europa mediodía
     - cron: '30 18 * * *'  #  1:30pm Col — Europa tarde
