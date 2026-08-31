@@ -4663,13 +4663,35 @@
       "under25_bonus": 4,
       "cuota_under25": 2.09,
       "martingala_procesado": true
+    },
+    {
+      "id": "9a3abc2960935807",
+      "fecha": "2026-08-31",
+      "tipo": "draw",
+      "local": "Union La Calera",
+      "visitante": "La Serena",
+      "liga": "Primera División - Chile",
+      "sport_key": "soccer_chile_campeonato",
+      "score": 80,
+      "cuota": 3.37,
+      "hora_col": "17:15",
+      "commence_time": "2026-08-31T22:15:00Z",
+      "apuesta_cop": 15188,
+      "ganancia_pot": 35996,
+      "estado": "pendiente",
+      "resultado": null,
+      "ganancia_real": 0,
+      "nivel_martingala": 6,
+      "under25_bonus": 7,
+      "cuota_under25": 1.9,
+      "martingala_procesado": false
     }
   ],
   "stats": {
-    "total": 212,
+    "total": 213,
     "ganadas": 50,
     "perdidas": 162,
-    "pendientes": 0,
+    "pendientes": 1,
     "ganancia_neta": -376945
   },
   "martingala": {
