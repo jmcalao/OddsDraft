@@ -4810,13 +4810,13 @@
       "commence_time": "2026-09-03T18:00:00Z",
       "apuesta_cop": 2000,
       "ganancia_pot": 5560,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "2-0",
+      "ganancia_real": -2000,
       "nivel_martingala": 1,
       "under25_bonus": 0,
       "cuota_under25": 2.69,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "92b6c48d8af4d998",
@@ -4832,13 +4832,13 @@
       "commence_time": "2026-09-03T18:30:00Z",
       "apuesta_cop": 2000,
       "ganancia_pot": 5320,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "1-2",
+      "ganancia_real": -2000,
       "nivel_martingala": 1,
       "under25_bonus": 0,
       "cuota_under25": 2.43,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "0310d74b78631266",
@@ -4854,25 +4854,25 @@
       "commence_time": "2026-09-03T18:30:00Z",
       "apuesta_cop": 2000,
       "ganancia_pot": 4940,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "1-0",
+      "ganancia_real": -2000,
       "nivel_martingala": 1,
       "under25_bonus": 7,
       "cuota_under25": 2.17,
-      "martingala_procesado": false
+      "martingala_procesado": true
     }
   ],
   "stats": {
     "total": 221,
     "ganadas": 52,
-    "perdidas": 166,
-    "pendientes": 3,
-    "ganancia_neta": -369004
+    "perdidas": 169,
+    "pendientes": 0,
+    "ganancia_neta": -375004
   },
   "martingala": {
-    "nivel": 2,
-    "racha_perdidas": 1,
+    "nivel": 5,
+    "racha_perdidas": 4,
     "activa": true,
     "stop_notificado": false
   },
