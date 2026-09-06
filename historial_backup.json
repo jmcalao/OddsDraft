@@ -5536,13 +5536,13 @@
       "commence_time": "2026-09-06T17:30:00Z",
       "apuesta_cop": 15188,
       "ganancia_pot": 34173,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "ganada",
+      "resultado": "0-0",
+      "ganancia_real": 34173,
       "nivel_martingala": 6,
       "under25_bonus": 0,
       "cuota_under25": 1.9,
-      "martingala_procesado": false
+      "martingala_procesado": true
     },
     {
       "id": "9913667710056fa8",
@@ -5569,16 +5569,16 @@
   ],
   "stats": {
     "total": 253,
-    "ganadas": 59,
+    "ganadas": 60,
     "perdidas": 192,
-    "pendientes": 2,
-    "ganancia_neta": -471034
+    "pendientes": 1,
+    "ganancia_neta": -436861
   },
   "martingala": {
-    "nivel": 6,
-    "racha_perdidas": 9,
-    "activa": false,
-    "stop_notificado": true
+    "nivel": 1,
+    "racha_perdidas": 0,
+    "activa": true,
+    "stop_notificado": false
   },
   "apostados_ids": [
     "ee712114c178f133",
