@@ -387,9 +387,9 @@ def main():
         )
 
         # ── Parlay semanal (sábado y domingo) ────────────────
-        from parlays import correr_parlay
-        if correr_parlay(historial):
-            sincronizar_parlay_sheet(historial)
+        #from parlays import correr_parlay
+        #if correr_parlay(historial):
+            #sincronizar_parlay_sheet(historial)
 
         # ── Cierre del día ────────────────────────────────────
         if es_bloque_cierre():
