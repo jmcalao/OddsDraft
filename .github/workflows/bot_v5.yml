@@ -11,19 +11,19 @@ on:
     - cron: '0 3 * * *'    # 10:00pm Col — Asia/Oceanía ← CIERRE
     - cron: '0 6 * * *'    #  1:00am Col — Asia madrugada
     # ── Parlay dedicado: sábado y domingo 10am Colombia (15:00 UTC) ──
-    - cron: '0 15 * * 6'   # Sábado  10:00am Col
-    - cron: '0 15 * * 0'   # Domingo 10:00am Col
+    #- cron: '0 15 * * 6'   # Sábado  10:00am Col
+    #- cron: '0 15 * * 0'   # Domingo 10:00am Col
 
-  workflow_dispatch:
-    inputs:
-      force_parlay:
-        description: 'Forzar parlay ahora (true/false)'
-        required: false
-        default: 'false'
-      parlay_random:
-        description: 'Picks aleatorios para probar pipeline (true/false)'
-        required: false
-        default: 'false' 
+  #workflow_dispatch:
+    #inputs:
+      #force_parlay:
+        #description: 'Forzar parlay ahora (true/false)'
+        #required: false
+        #default: 'false'
+      #parlay_random:
+        #description: 'Picks aleatorios para probar pipeline (true/false)'
+        #required: false
+        #default: 'false' 
 
 
 permissions:
@@ -87,8 +87,8 @@ jobs:
           GITHUB_TOKEN:                ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY:           ${{ github.repository }}
           # Forzar parlay si se activó manualmente con force_parlay=true
-          PARLAY_FORCE:                ${{ github.event.inputs.force_parlay }}
-          PARLAY_RANDOM:               ${{ github.event.inputs.parlay_random }}
+          #PARLAY_FORCE:                ${{ github.event.inputs.force_parlay }}
+          #PARLAY_RANDOM:               ${{ github.event.inputs.parlay_random }}
         run: python main.py
 
       - name: 📤 Guardar historial en artifact
