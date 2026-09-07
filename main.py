@@ -39,7 +39,7 @@ from historial import (
     get_estado_martingala, necesita_stop_alert, marcar_stop_notificado,
     calcular_stats_detalladas, formatear_reporte_stats,
 )
-from sheets import sincronizar_google_sheets, sincronizar_parlay_sheet
+#from sheets import sincronizar_google_sheets, sincronizar_parlay_sheet
 from telegram_bot import (
     enviar_telegram, formatear_alerta_draw,
     formatear_sin_alertas, formatear_resumen_alertas,
@@ -47,7 +47,7 @@ from telegram_bot import (
 )
 from gemini_ai import analisis_diario_gemini, analizar_partido_gemini
 from backup   import backup_historial_github
-from parlays  import correr_parlay
+#from parlays  import correr_parlay
 from utils    import hora_local_col
 
 logging.basicConfig(
