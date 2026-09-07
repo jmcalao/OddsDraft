@@ -14,7 +14,7 @@ on:
     #- cron: '0 15 * * 6'   # Sábado  10:00am Col
     #- cron: '0 15 * * 0'   # Domingo 10:00am Col
 
-  #workflow_dispatch:
+  workflow_dispatch:
     #inputs:
       #force_parlay:
         #description: 'Forzar parlay ahora (true/false)'
