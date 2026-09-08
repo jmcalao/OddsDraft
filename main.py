@@ -39,7 +39,7 @@ from historial import (
     get_estado_martingala, necesita_stop_alert, marcar_stop_notificado,
     calcular_stats_detalladas, formatear_reporte_stats,
 )
-#from sheets import sincronizar_google_sheets, sincronizar_parlay_sheet
+from sheets import sincronizar_google_sheets, sincronizar_parlay_sheet
 from telegram_bot import (
     enviar_telegram, formatear_alerta_draw,
     formatear_sin_alertas, formatear_resumen_alertas,
