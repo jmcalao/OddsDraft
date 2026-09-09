@@ -5690,25 +5690,25 @@
       "commence_time": "2026-09-09T15:00:00Z",
       "apuesta_cop": 10125,
       "ganancia_pot": 22680,
-      "estado": "pendiente",
-      "resultado": null,
-      "ganancia_real": 0,
+      "estado": "perdida",
+      "resultado": "2-1",
+      "ganancia_real": -10125,
       "nivel_martingala": 5,
       "under25_bonus": 0,
       "cuota_under25": 1.78,
-      "martingala_procesado": false
+      "martingala_procesado": true
     }
   ],
   "stats": {
     "total": 259,
     "ganadas": 62,
-    "perdidas": 196,
-    "pendientes": 1,
-    "ganancia_neta": -409272
+    "perdidas": 197,
+    "pendientes": 0,
+    "ganancia_neta": -419397
   },
   "martingala": {
-    "nivel": 5,
-    "racha_perdidas": 4,
+    "nivel": 6,
+    "racha_perdidas": 5,
     "activa": true,
     "stop_notificado": false
   },
